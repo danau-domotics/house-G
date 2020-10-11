@@ -20,7 +20,8 @@ Het besturings-netwerk van het domotica-systeem gebruikt [1-wire](https://en.wik
 
 ### Aansluitschema
 
-TODO: toevoegen
+![alt text](1W_boxes.svg "")
+![alt text](Layout_1W_network.svg "")
 
 ### Gebruikte componenten
 
