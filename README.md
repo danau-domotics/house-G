@@ -1,46 +1,23 @@
-# house-G
+# house G - Domotica Systeem
 
 ## English Intro
 
-Inhouse domotics project that is older than Danau Domotics itself.
+Domotics project that is older than Danau Domotics itself.
 
 Most documentation in project is written in Dutch, since the house where this domotics project is done is located in the Netherlands.
 
 ## Nederlandse Introductie
 
-Domotica project in eigen huis dat ouder is dan Danau Domotics zelf.
+Domotica project dat ouder is dan Danau Domotics zelf.
 
 De meeste documentatie in dit project is geschreven in het Nederlands, want het huis waar dit project uitgevoerd is staat in Nederland.
 
+# Documenten
+
+[Systeem beschrijving](docs/NL/system_description)
+[Onderhoud Handleiding](docs/NL/service_manual)
 
 
-# Systeem functies en interactie met andere systemen
-
-
-
-# Gebruikte componenten en onderdelen.
-
-## Aansluit-schema
-
-
-
-# Gebruikers Handleiding
-
-TODO: stukje schrijven
-
-
-
-# Onderhouds Handleiding
-
-- [Systeem Uitschakelen](./handleiding/uitschakelen.md)
-- [Systeem Inschakelen](./handleiding/inschakelen.md), zowel standaard als nood-procedure
-- Systeem Handbediening; TODO: toevoegen
-- Verwisselen Actuator; TODO: toevoegen
-- [Verwisselen Sensor](./handleiding/vervangen_sensor.md)
-- [Verwisselen SD Kaart](./handleiding/vervangen_sd_kaart.md)
-- Verwisselen 1-wire/USB bridge; TODO; toevoegen
-- Verwisselen Centrale Controller; TODO: toevoegen
-- [Probleem oplossing](./handleing/probleemoplossing.md)
 
 
 
