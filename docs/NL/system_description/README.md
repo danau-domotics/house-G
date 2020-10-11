@@ -18,10 +18,13 @@ Elke ruimte is via UTP aangesloten op 1 van de patch-panelen en patchpanelen G e
 
 Het besturings-netwerk van het domotica-systeem gebruikt [1-wire](https://en.wikipedia.org/wiki/1-Wire) over UTP.
 
-### Aansluitschema
 
-![alt text](1W_boxes.svg "")
-![alt text](Layout_1W_network.svg "")
+### Netwerk layout
+![alt text](Layout_1W_network.svg "Netwerk layout")
+
+### Aansluitschema
+![alt text](1W_boxes.svg "Aansluitschema")
+
 
 ### Gebruikte componenten
 
