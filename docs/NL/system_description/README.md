@@ -27,7 +27,7 @@ Het besturings-netwerk van het domotica-systeem gebruikt [1-wire](https://en.wik
 ![alt text](1W_boxes.svg "Aansluitschema")
 
 
-### Gebruikte componenten
+### Gebruikte domotica componenten
 
 Gebruikte componenten in het systeem:
 
@@ -38,3 +38,8 @@ Gebruikte componenten in het systeem:
 |      2 | Pomp/Actuator aansturing   | [8 Kanaals Relay Module 1-wire](http://denkovi.com/1-wire-eight-channel-relay-module-for-home-automation-with-din-box) |
 |    ~10 | Kamer temperatuur meten    | DS18B20 1-wire temperature sensor |
 |    ~10 | Leiding temperatuur meten  | DS18B20 1-wire temperature sensor |
+
+
+## Verwarmings netwerk.
+
+- [Overzicht van CV verdelers](cv_verdelers.md)
