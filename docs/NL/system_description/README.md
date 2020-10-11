@@ -3,13 +3,15 @@
 
 ## Computer en domotica UTP netwerk bedrading
 
-Huis G is voorzien van een UTP-netwerk met 3 centrale patch panelen.
+Huis G is voorzien van een UTP-netwerk met 3 standaard UTP patch panelen en 2 routing-panelen specifiek t.b.v. het domotica en computer netwerk.
 
-| Code | Naam      | Locatie |
-| ---  | ---       | ---     |
-| G    | Garage    | In schuur/garage bij verwarmings-verdeler |
-| M    | Meterkast | Begane grond in meterkast bij entree/hal  |
-| W    | Waskamer  | Eerste verdieping, onder trap naar zolder |
+| Code | Naam                  | Locatie |
+| ---  | ---                   | ---     |
+| G    | Garage Patchpaneel    | In schuur/garage bij verwarmings-verdeler |
+| M    | Meterkast Patchpaneel | Begane grond in meterkast bij entree/hal  |
+| M1W  | Meterkast Routing     | Vlakbij patchpaneel M                     |
+| W    | Waskamer Patchpaneel  | Eerste verdieping, onder trap naar zolder |
+| W1W  | Waskamer Routing      | Vlakbij patchpaneel W                     |
 
 Elke ruimte is via UTP aangesloten op 1 van de patch-panelen en patchpanelen G en W zijn beiden verbonden met paneel M.
 
@@ -17,7 +19,6 @@ Elke ruimte is via UTP aangesloten op 1 van de patch-panelen en patchpanelen G e
 ## Domotica netwerk.
 
 Het besturings-netwerk van het domotica-systeem gebruikt [1-wire](https://en.wikipedia.org/wiki/1-Wire) over UTP.
-
 
 ### Netwerk layout
 ![alt text](Layout_1W_network.svg "Netwerk layout")
