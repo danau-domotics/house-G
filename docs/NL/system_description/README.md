@@ -42,4 +42,14 @@ Gebruikte componenten in het systeem:
 
 ## Verwarmings netwerk.
 
+### Centrale Verwarming Pomp en Verdelers
+
+Deze [CSV-file](../../../data/cv_verdelers.csv) geeft een overzicht van de koppelingen tussen de vloerverwarming actuatoren en de domotica relay borden.
+
+Het actuator type geeft aan of de actuator normaal NO (normaal open) of NC (normaal gesloten) is als er geen stroom op de actuator staat.
+De circulatie-pomp van het afgiftesysteem zit op relay 1 van het relay bord in de garage.
+
+
+
+
 - [Overzicht van CV verdelers](cv_verdelers.md)
