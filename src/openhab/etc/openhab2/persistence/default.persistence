@@ -1,0 +1,6 @@
+Strategies {
+}
+ 
+Items {
+   Valves_Primary*: strategy = everyChange
+}

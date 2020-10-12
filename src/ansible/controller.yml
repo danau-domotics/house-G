@@ -1,0 +1,7 @@
+---
+# Common settings for climate controller systems
+# file: climate_controller.yml
+
+- hosts: openhab_server
+  roles:
+    - controller

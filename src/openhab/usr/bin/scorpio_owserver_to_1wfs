@@ -1,0 +1,7 @@
+#!/bin/bash
+for SENSOR in `owdir | grep /2[89]`
+do
+	echo -n "${SENSOR}  ---  ${SENSOR:1:2}-"
+	owget ${SENSOR}/r_id | tr '[:upper:]' '[:lower:]'
+	echo ""
+done

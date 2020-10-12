@@ -1,0 +1,139 @@
+import org.eclipse.smarthome.model.script.ScriptServiceUtil
+
+// Time to wait before a circuit is considered to be safely opened (in seconds).
+var Number   openingSafeTime = 600
+
+// Time to keep a temporary circuit open.
+var Number   dryingTime = 3600
+
+
+rule "Open Valves for Circulation"
+when
+	Member of Circuits_Primary changed to ON
+then
+	// Don't do any active control if manual control is active.
+	if(Home_Mode.state.toString().equals("manual"))
+		return;
+
+	var String valveName = triggeringItem.name.toString.replaceAll("_Circulate", "_Valve")
+	sendCommand(valveName, triggeringItem.state.toString())
+end
+
+
+
+rule "Opencounts for valves"
+when
+	Time cron "0/1 * * ? * * *"
+then
+	Valve_Counters.members.forEach[ valveCounter |
+		// Check if the valve should be opened based on circulation and current state.
+		var String circulationName = valveCounter.name.toString.replaceAll("_TimeToOpen", "_Circulate");
+		var String valveName = valveCounter.name.toString.replaceAll("_TimeToOpen", "_Valve");
+		var circulateItem = ScriptServiceUtil.getItemRegistry.getItem(circulationName);
+		var valveItem = ScriptServiceUtil.getItemRegistry.getItem(valveName);
+		
+		// Report issues if the circulate-item or valve-item could not be found.
+		if (circulateItem === null){
+			logInfo("circulation.rules", "Item " + circulationName + " not found.");
+			return;
+		}
+		if (valveItem === null){
+			logInfo("circulation.rules", "Item " + valveName + " not found.");
+			return;
+		}
+
+		// Initialize counter if it wasn't initialized
+		if (valveCounter.state == NULL){
+			valveCounter.sendCommand(openingSafeTime);
+			return;
+		}
+
+		// Get current count and variable to set new count.
+		var Number currentCount = (valveCounter.state as Number);
+		var Number newCount = currentCount;
+
+		if (circulateItem.state == ON){
+			if (valveItem.state != ON){
+				// We want to circulate, let the valve know (and reset opening counters).
+				valveItem.sendCommand(ON);
+				newCount = openingSafeTime;
+			}
+			else {
+				// Regular count-down for if the valve is open and we want to circulate
+				if (currentCount <= 1){
+					newCount = 0;
+				}
+				else {
+
+					newCount -= 1;
+				}
+			}
+		}
+		else { // If we don't want to circulate.
+			newCount = openingSafeTime;
+		}
+
+		// Update the counter if it changed.
+		if (newCount != currentCount) {
+			valveCounter.sendCommand(newCount)
+		}
+	]
+end
+
+
+
+rule "Active pump and closing control"
+when
+	Time cron "0/10 * * ? * * *"
+then
+	var toClose = Valve_Counters.members.filter [ i | i.state >= openingSafeTime ]
+	var safelyOpened = Valve_Counters.members.filter [ i | i.state == 0 ]	
+
+	// Update UI with the safe open state
+	if(Home_CircuitsOpen.state != safelyOpened.size)
+		Home_CircuitsOpen.sendCommand(safelyOpened.size)
+
+	// Don't do any active control if manual control is active.
+	if(Home_Mode.state.toString().equals("manual"))
+		return;
+
+	// Activate pump if desired and safe to do so.
+	if(Circuits_Primary.state == ON && safelyOpened.size > 0)
+	{
+		// Circulation is desired
+		if(Home_Pump.state == OFF)
+		{
+			logInfo("circulation.rules", "Activating pump based on open circuits.");
+			Home_Pump.sendCommand(ON)
+			// Don't go into closing this iteration. Just activated pump. Closing can go to next.
+		}
+		else
+		{
+			// Close valves that need to be closed while the pump is on.
+			// Closing is only done when the pump was already on and needs to stay on.
+			toClose.forEach[ i |
+				var String circulationName = i.name.toString.replaceAll("_TimeToOpen", "_Circulate");
+				var String valveName = i.name.toString.replaceAll("_TimeToOpen", "_Valve")
+				var circulateItem = ScriptServiceUtil.getItemRegistry.getItem(circulationName);
+				var valveItem = ScriptServiceUtil.getItemRegistry.getItem(valveName);			
+				
+				// Report issues if the circulate-item or valve-item could not be found.
+				if (circulateItem === null){
+					logInfo("circulation.rules", "Item " + circulationName + " not found during pump-control.");
+				}
+				else if (valveItem === null){
+					logInfo("circulation.rules", "Item " + valveName + " not found during pump-control.");
+				}
+				else if (circulateItem.state == OFF && valveItem.state != OFF){
+					sendCommand(valveItem.name, OFF.toString);
+				}
+			]
+		}
+	}
+	else if (Home_Pump.state == ON)
+	{
+		// If no circulation is safe or needed, then switch the pump off
+		logInfo("circulation.rules", "Stopping pump due to no demand.");
+		Home_Pump.sendCommand(OFF)
+	}
+end

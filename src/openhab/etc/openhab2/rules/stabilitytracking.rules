@@ -1,0 +1,32 @@
+import org.eclipse.smarthome.model.script.ScriptServiceUtil
+import org.openhab.core.thing.ThingRegistry
+
+
+rule "OneWire Offline Tracking"
+when
+	Time cron "0/10 * * ? * * *"
+then
+	val things = ScriptServiceUtil.getInstance.thingRegistry.getAll()
+	things.forEach[theThing |
+		val trackerNameSplit = theThing.getUID().toString().split(":")
+		if(trackerNameSplit.length == 4){		
+			val trackerName = trackerNameSplit.get(3) + "_offlineTime";
+			val trackerItem = ScriptServiceUtil.getItemRegistry.getItem(trackerName);
+
+			if(trackerItem.state == NULL){
+				trackerItem.sendCommand(0);
+			}
+			else if(theThing.getStatus().toString().equals("OFFLINE")){
+				trackerItem.sendCommand((trackerItem.state as Number) + 1);
+			}
+		}
+	]
+	
+	// Keep track of the total amount of measurements
+	if(Zmeasurements_offLineTime.state == NULL){
+		Zmeasurements_offLineTime.sendCommand(0);
+	}
+	else {
+		Zmeasurements_offLineTime.sendCommand((Zmeasurements_offLineTime.state as Number) + 1);
+	}
+end

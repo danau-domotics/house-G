@@ -1,0 +1,25 @@
+// Rules specific for valves that follow other valves.
+
+rule "LivingFront and LivingAft following LivingMid Circulation"
+when
+	Item GF_LivingMid_Circulate received update 
+then
+	// Don't do any active control if manual control is active.
+	if(Home_Mode.state.toString().equals("manual"))
+		return;
+
+	GF_LivingFront_Circulate.sendCommand(GF_LivingMid_Circulate.state as OnOffType)		
+	GF_LivingAft_Circulate.sendCommand(GF_LivingMid_Circulate.state as OnOffType)
+end
+
+
+rule "Valve Hallway following valve Corridor"
+when
+	Item FF_Corridor_Circulate received update
+then
+	// Don't do any active control if manual control is active.
+	if(Home_Mode.state.toString().equals("manual"))
+		return;
+
+	GF_Hallway_Circulate.sendCommand(FF_Corridor_Circulate.state as OnOffType)
+end

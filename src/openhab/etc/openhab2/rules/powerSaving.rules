@@ -1,0 +1,22 @@
+rule "Valves to default positions after pump stop for power-saving"
+when
+	Item Home_Pump changed to OFF
+then
+	// Don't do any active control if manual control is active.
+	if(Home_Mode.state.toString().equals("manual"))
+		return;
+
+	// Set normally open primary valves to open.
+	GF_Office_Valve.sendCommand(ON)
+	GF_LivingAft_Valve.sendCommand(ON)
+	GF_LivingMid_Valve.sendCommand(ON)
+	GF_LivingFront_Valve.sendCommand(ON)
+	FF_Bathroom_Valve.sendCommand(ON)
+	GF_Hallway_Valve.sendCommand(ON)
+	
+	// Set normally closed primary valves to closed.
+	FF_BedroomAft_Valve.sendCommand(OFF)
+	FF_BedroomFRight_Valve.sendCommand(OFF)
+	FF_BedroomFLeft_Valve.sendCommand(OFF)
+	FF_Corridor_Valve.sendCommand(OFF)
+end

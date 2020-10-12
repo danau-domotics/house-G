@@ -1,0 +1,9 @@
+#!/bin/bash
+
+/usr/bin/owdir | sed "s,^/,," |
+while read INPUT
+do
+	echo -n "${INPUT}  "
+	grep "${INPUT}" /etc/openhab2/things/*.things
+	echo ""
+done

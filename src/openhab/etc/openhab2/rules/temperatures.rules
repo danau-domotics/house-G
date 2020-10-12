@@ -1,0 +1,161 @@
+import org.eclipse.smarthome.model.script.ScriptServiceUtil
+
+// Deltas for hysteresis, to avoid pendelling of pump
+var Number   hysterDelta = 0.2
+
+// Temperature at which to activate protection against freezing
+var Number   freezeProtection = 8
+
+
+
+rule "Switch to heating mode"
+when
+	Item Home_Mode changed to heat
+then
+	GF_LivingMid_Setpoint.sendCommand(20);
+	GF_Office_Setpoint.sendCommand(20);
+	FF_Bathroom_Offsetpoint.sendCommand(2);
+	FF_BedroomAft_Setpoint.sendCommand(16);
+	FF_BedroomFLeft_Setpoint.sendCommand(16);
+	FF_BedroomFRight_Setpoint.sendCommand(16);
+	FF_Corridor_Setpoint.sendCommand(16);
+	
+	// Initialize manual groups (based on power-saving settings)
+	GF_GarageRad_Circulate.sendCommand(OFF)
+	GF_HallwayRad_Circulate.sendCommand(OFF)
+	FF_Bathroom_Circulate.sendCommand(ON)
+	FF_BathroomRad_Circulate.sendCommand(OFF)
+	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
+end
+
+
+
+rule "Switch to cooling mode"
+when
+	Item Home_Mode changed to cool
+then
+	GF_LivingMid_Setpoint.sendCommand(21);
+	GF_Office_Setpoint.sendCommand(21);
+	FF_Bathroom_Offsetpoint.sendCommand(2);
+	FF_BedroomAft_Setpoint.sendCommand(20);
+	FF_BedroomFLeft_Setpoint.sendCommand(20);
+	FF_BedroomFRight_Setpoint.sendCommand(20);
+	FF_Corridor_Setpoint.sendCommand(20);
+
+	// Initialize manual groups (based on no cooling in optional areas)
+	GF_GarageRad_Circulate.sendCommand(OFF)
+	GF_HallwayRad_Circulate.sendCommand(OFF)
+	FF_Bathroom_Circulate.sendCommand(OFF)
+	FF_BathroomRad_Circulate.sendCommand(OFF)
+	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
+end
+
+rule "Switch to anti-freeze mode"
+when
+	Item Home_Mode changed to ""
+then
+	GF_LivingMid_Setpoint.sendCommand(10);
+	GF_Office_Setpoint.sendCommand(10);
+	FF_Bathroom_Offsetpoint.sendCommand(10);
+	FF_BedroomAft_Setpoint.sendCommand(10);
+	FF_BedroomFLeft_Setpoint.sendCommand(10);
+	FF_BedroomFRight_Setpoint.sendCommand(10);
+	FF_Corridor_Setpoint.sendCommand(10);
+
+	// Initialize manual groups (based on no cooling in optional areas)
+	GF_GarageRad_Circulate.sendCommand(OFF)
+	GF_HallwayRad_Circulate.sendCommand(OFF)
+	FF_Bathroom_Circulate.sendCommand(OFF)
+	FF_BathroomRad_Circulate.sendCommand(OFF)
+	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
+end
+
+rule "Room Thermostat Updates"
+when
+	Member of Setpoints received update or
+	Member of Temperature_Primary changed
+then
+	// Get the base-name of the room we are controlling.
+	var String baseName = triggeringItem.name.toString.replaceAll("_RoomTemp", "").replaceAll("_Setpoint", "").replaceAll("_Offsetpoint", "").replaceAll("_Return", "");
+	
+	// Get the corresponding temperature sensor item
+	var String tempSensorName = baseName + "_RoomTemp";
+	var tempSensorItem = ScriptServiceUtil.getItemRegistry.getItem(tempSensorName);
+	if(tempSensorItem === null){
+		logError("temperatures.rules", "Temperature sensor {} not found!", tempSensorName);
+		return;
+	}
+	
+	// Get the corresponding setpoint item
+	var String setPointName = baseName + "_Setpoint";
+	var setPointItem = ScriptServiceUtil.getItemRegistry.getItem(setPointName);
+	if(setPointItem === null){
+		logError("temperatures.rules", "Setpoint item {} not found!", setPointName);
+		return;
+	}
+	var String circulateName = baseName + "_Circulate";
+	var circulateItem = ScriptServiceUtil.getItemRegistry.getItem(circulateName);
+	if(circulateItem === null){
+		logError("temperatures.rules", "Circulate item {} not found!", circulateName);
+		return;
+	}
+	if(circulateItem.state != ON && circulateItem.state != OFF){
+		logError("temperatures.rules", "Initializing circulate item {} to OFF!", circulateName);
+		circulateItem.sendCommand(OFF);
+		return;
+	}
+
+	var Number setPoint = setPointItem.state;
+	var Number tempRead = tempSensorItem.state;
+
+	// Keep doing what we were doing, except when overruled by cooling or heating limits.
+	var didCirculate = circulateItem.state;
+	var doCirculate = didCirculate;
+
+	// Don't do any active control if manual control is active.
+	if(Home_Mode.state.toString().equals("manual"))
+	{
+		return;
+	}
+	else if(tempRead + hysterDelta <= freezeProtection )
+	{
+		if(doCirculate == OFF)
+			logInfo("temperatures.rules", "Freezing protection active for {}", baseName);
+		// Protection against freezing has priority over all else.
+		doCirculate = ON;
+	}
+	else if(setPoint === null)
+	{
+		logError("temperatures.rules", "No valid setpoint for {}!", baseName);
+		doCirculate = OFF;
+	}
+	else if(tempRead === null)
+	{
+		logError("temperatures.rules", "No known temperature for {}!", baseName);
+		doCirculate = OFF;
+	}
+	else if(Home_Mode.state.toString().equals("cool"))
+	{
+		if(tempRead - hysterDelta > setPointItem.state)
+			doCirculate = ON;
+		if(tempRead + hysterDelta < setPointItem.state)
+			doCirculate = OFF;
+	}	
+	else if(Home_Mode.state.toString().equals("heat"))
+	{
+		if(tempRead + hysterDelta < setPointItem.state)
+			doCirculate = ON;
+		if(tempRead - hysterDelta > setPointItem.state)
+			doCirculate = OFF;
+	}
+	else if(tempRead - hysterDelta > freezeProtection)
+	{
+		// No circulation if we are not heating (regular or freeze-protection) or cooling
+		doCirculate = OFF;
+	}
+	
+	if(didCirculate != doCirculate){
+		logError("temperatures.rules", "Setting {} to {}", circulateItem.name, doCirculate);
+		sendCommand(circulateItem.name, doCirculate.toString)
+	}
+end

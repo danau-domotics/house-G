@@ -1,0 +1,120 @@
+Bridge onewire:owserver:localbridge [ network-address="localhost" ]
+{
+	Thing basic gf_switches [ id="29.78182A000000", refresh=60 ] {
+		Channels:
+			Type dio : digital0 [ mode="output", logic="normal" ]   // Pump normal-off
+			Type dio : digital1 [ mode="output", logic="inverted" ] // Office floor valve, NO
+			Type dio : digital2 [ mode="output", logic="inverted" ] // Halway floor valve, NO
+			Type dio : digital3 [ mode="output", logic="inverted" ] // LivingRoomAft floor valve, NO
+			Type dio : digital4 [ mode="output", logic="inverted" ] // LivingRoomMid floor valve, NO
+			Type dio : digital5 [ mode="output", logic="inverted" ] // LivingRoomFront floor valve, NO
+			Type dio : digital6 [ mode="output", logic="normal" ]   // Halway radiator valve, NC
+			Type dio : digital7 [ mode="output", logic="normal" ]   // Garage radiator valve, NC
+	}
+
+	Thing basic ff_switches [ id="29.90182A000000", refresh=60 ] {
+		Channels:
+			Type dio : digital1 [ mode="output", logic="inverted" ] // Bathroom floor valve, NO
+			Type dio : digital2 [ mode="output", logic="normal" ]   // BedroomAft floor valve, NC
+			Type dio : digital3 [ mode="output", logic="normal" ]   // BedroomFRight floor valve, NC
+			Type dio : digital4 [ mode="output", logic="normal" ]   // BedroomFLeft floor valve, NC
+			Type dio : digital5 [ mode="output", logic="normal" ]   // Hallway floor valve, NC
+			Type dio : digital6 [ mode="output", logic="inverted" ] // Bathroom radiator valve, NO
+			Type dio : digital7 [ mode="output", logic="normal" ]   // LaundryRoom radiator valve, NC
+	}
+
+	Thing basic supply_temp [ id="28.D4AA2E0A0000", refresh=60 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="11" ]
+	}
+	Thing basic living_roomtemp [ id="28.11202F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="11" ]
+	}
+
+	Thing basic living_front_return [ id="28.331A2F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+	Thing basic living_mid_return [ id="28.38A02E0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+	Thing basic living_aft_return [ id="28.EF3F2F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+	Thing basic garage_radiator_return [ id="28.6BE42F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+	Thing basic garage_roomtemp [ id="28.04EF2F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+	Thing basic hallway_floor_return [ id="28.07B7300A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="10" ]
+	}
+	Thing basic hallway_radiator_return [ id="28.855E2F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="10" ]
+	}
+	Thing basic office_roomtemp [ id="28.DA412F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="11" ]
+	}
+	Thing basic office_return [ id="28.B67C2F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+	Thing basic bathroom_roomtemp [ id="28.8474F9351901", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="11" ]
+	}
+	Thing basic bathroom_floor_return [ id="28.46EC2F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="11" ]
+	}
+	Thing basic bathroom_radiator_return [ id="28.8832300A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="11" ]
+	}
+	Thing basic bedroom_fl_roomtemp [ id="28.E119300A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="11" ]
+	}
+	Thing basic bedroom_fl_return [ id="28.1A2E2F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+	Thing basic bedroom_aft_roomtemp [ id="28.99852E0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="11" ]
+	}
+	Thing basic bedroom_aft_return [ id="28.3CFF2E0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+	Thing basic bedroom_fr_roomtemp [ id="28.CBCC2F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="11" ]
+	}
+	Thing basic bedroom_fr_return [ id="28.0F342F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+	Thing basic corridor_roomtemp [ id="28.F72D2F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="11" ]
+	}
+	Thing basic corridor_return [ id="28.33632F0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+	Thing basic laundryroom_return [ id="28.5DCF2E0A0000", refresh=300 ] {
+		Channels:
+			Type temperature-por-res : temperature [ ignorepor=true, resolution="9" ]
+	}
+}
+ntp:ntp:local  [hostname="nl.pool.ntp.org", refreshInterval=60, refreshNtp=30, locale="Europe/Amsterdam", timeZone="Europe/Amsterdam"]

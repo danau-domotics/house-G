@@ -1,0 +1,5 @@
+---
+# Top-level playbook for Scorpio / house-G
+
+# file: site.yml
+- import_playbook: controller.yml

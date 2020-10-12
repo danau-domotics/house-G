@@ -1,0 +1,132 @@
+---
+# file: roles/controller/tasks/main.yml
+
+
+# Additional information on owfs:
+#   https://owfs.org/index_php_page_aliases.html
+- name: Install supporting programs
+  apt:
+    update_cache: no
+    name: "{{ packages }}"
+    state: present
+  become: true
+  become_user: root
+  become_method: sudo
+  vars:
+    packages:
+    - owhttpd
+    - lsof
+#  when: "package_cache_updated.cache_updated | default(true)"
+
+
+# Default 1-wire port;
+#    pin 7, gpio 4 and additional ports
+# Additional Original Scorpio Climate systems ports:
+#    pin 32, gpio 12
+#    pin 31, gpio 6
+# Additional OpenHab based Scorpio Climate systems:
+#    pin 11, gpio 17
+#    pin 13, gpio 27 (OpenHab systems)
+# TODO: reboot required after changing this.
+- name: Ensure presence of 1-wire config-lines in /boot/config.txt
+  lineinfile:
+    path: /boot/config.txt
+    line: '{{ item }}'
+  with_items:
+    - 'dtoverlay=w1-gpio,gpiopin=4'
+#    - 'dtoverlay=w1-gpio,gpiopin=6'
+#    - 'dtoverlay=w1-gpio,gpiopin=12'
+    - 'dtoverlay=w1-gpio,gpiopin=17'
+    - 'dtoverlay=w1-gpio,gpiopin=27'
+  register: boot_config
+  become: true
+  become_user: root
+  become_method: sudo
+  when: false
+
+
+- name: Ensure presence of 1-wire driver in owfs.conf
+  lineinfile:
+    path: /etc/owfs.conf
+    line: '{{ item }}'
+  with_items:
+    #- 'server: w1'
+    - 'server: device = /dev/ttyUSB0'
+  become: true
+  become_user: root
+  become_method: sudo
+
+
+- name: Copy configuration data
+  copy:
+    src: "../../../../openhab{{ item.path }}/{{ item.filename }}"
+    dest: '{{ item.path }}'
+    owner: root
+    mode: u=rw,g=r,o=r
+  with_items:
+    - { path: '/etc/openhab2/items',       filename: 'default.items' }
+    - { path: '/etc/openhab2/sitemaps',    filename: 'default.sitemap' }
+    - { path: '/etc/openhab2/things',      filename: 'default.things' }
+    - { path: '/etc/openhab2/rules',       filename: 'default.rules' }
+    - { path: '/etc/openhab2/rules',       filename: 'circulation.rules' }
+    - { path: '/etc/openhab2/rules',       filename: 'followValves.rules' }
+    - { path: '/etc/openhab2/rules',       filename: 'powerSaving.rules' }
+    - { path: '/etc/openhab2/rules',       filename: 'temperatures.rules' }
+    - { path: '/etc/openhab2/rules',       filename: 'stabilitytracking.rules' }
+    - { path: '/etc/openhab2/persistence', filename: 'default.persistence' }
+    - { path: '/etc/openhab2/transform',   filename: 'weekday.map' }
+  become: true
+  become_user: root
+  become_method: sudo
+
+
+- name: Copy support programs
+  copy:
+    src: "../../../../openhab{{ item.path }}/{{ item.filename }}"
+    dest: '{{ item.path }}'
+    owner: root
+    mode: u=rwx,g=rx,o=rx
+  with_items:
+    - { path: '/usr/bin',    filename: 'scorpio_owserver_to_1wfs' }
+    - { path: '/usr/bin',    filename: 'scorpio_1w_scan' }
+  become: true
+  become_user: root
+  become_method: sudo
+
+
+- name: Stop openHab
+  service:
+    name: openhab2
+    enabled: true
+    state: stopped
+  become: true
+  become_user: root
+  become_method: sudo
+  #when: false
+
+
+- name: Clear openHab cache
+  command: /usr/bin/openhab-cli clean-cache
+  become: true
+  become_user: root
+  become_method: sudo
+  #when: false
+
+
+- name: Restart openHab
+  service:
+    name: openhab2
+    enabled: true
+    #state: restarted
+    state: started
+  become: true
+  become_user: root
+  become_method: sudo
+
+
+- name: Reboot the openhab server
+  reboot:
+  become: true
+  become_user: root
+  become_method: sudo
+  #when: false

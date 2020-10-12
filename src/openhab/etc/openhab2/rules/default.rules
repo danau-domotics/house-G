@@ -1,0 +1,47 @@
+// TODO: Add expire to sensors and temperatures that are no longer available.
+// TODO: Add night/morning/afternoon/evening settings...
+// TOdo: Add scheduled settings (cron, once + regular?)
+
+rule "Start in safe mode"
+when
+	System started
+then
+	// Start-up with no pump running and no circuits approved.
+	Home_Pump.sendCommand(OFF)
+	Home_Automatic.sendCommand(OFF)
+end
+
+
+
+rule "Initialize setpoints"
+when
+	System started
+then
+	// Initialize Setpoints
+	if (GF_LivingMid_Setpoint.state == NULL)     { GF_LivingMid_Setpoint.sendCommand(20) }
+	if (GF_Office_Setpoint.state == NULL)        { GF_Office_Setpoint.sendCommand(20) }
+	if (FF_Bathroom_Setpoint.state == NULL)      { FF_Bathroom_Setpoint.sendCommand(20) }
+	if (FF_BedroomAft_Setpoint.state == NULL)    { FF_BedroomAft_Setpoint.sendCommand(16) }
+	if (FF_BedroomFLeft_Setpoint.state == NULL)  { FF_BedroomFLeft_Setpoint.sendCommand(16) }
+	if (FF_BedroomFRight_Setpoint.state == NULL) { FF_BedroomFRight_Setpoint.sendCommand(16) }
+	if (FF_Corridor_Setpoint.state == NULL)      { FF_Corridor_Setpoint.sendCommand(16) }
+	
+	// Initialize manual groups (based on power-saving settings)
+	GF_GarageRad_Circulate.sendCommand(OFF)
+	GF_HallwayRad_Circulate.sendCommand(OFF)
+	FF_Bathroom_Circulate.sendCommand(ON)
+	FF_BathroomRad_Circulate.sendCommand(OFF)
+	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
+	
+	// Initialize settings
+	//Home_Mode.sendCommand("")
+end
+
+rule "Switch automatic set to heating/cooling"
+when
+	Item Home_Automatic changed to ON
+then	// lookup temperature of supply; if it is lower or equal to .... the system is cooling. and if bigger as ... then home_mode should be set to heating
+	if (Home_SupplyTemp.state <= 30 )	{ Home_Mode.sendCommand("cool") } 	
+	else { Home_Mode.sendCommand("heat") }
+end 
+
