@@ -112,6 +112,7 @@ Number GF_Hallway_TimeToOpen            "Resterende tijd hal circuit openen [%.0
 Number GF_GarageRad_TimeToOpen          "Resterende tijd garage radiator openen [%.0f seconden]"            <time>  (Valve_Counters)
 Number GF_HallwayRad_TimeToOpen         "Resterende tijd hal radiator openen [%.0f seconden]"               <time>  (Valve_Counters)
 
+Number bathroom_roomtemp_offlineTime           "BK-room [%.0f]"   <error>  (Error_Time_Counters)
 Number bathroom_floor_return_offlineTime       "BKf-ret [%.0f]"   <error>  (Error_Time_Counters)
 Number bathroom_radiator_return_offlineTime    "BKr-ret [%.0f]"   <error>  (Error_Time_Counters)
 Number bedroom_aft_return_offlineTime          "SA-ret [%.0f]"    <error>  (Error_Time_Counters)
@@ -142,5 +143,5 @@ Number Zmeasurements_offLineTime               "Zmeasurements [%.0f]" <error>  (
 DateTime Time  "[%1$tH:%1$tM]"  <time> { channel="ntp:ntp:local:dateTime" }
 DateTime Date  "[%1$tA, %1$td-%1$tm-%1$tY]"  <calendar> { channel="ntp:ntp:local:dateTime" }
 
-String 	Overview_Downstairs					"Werkkamer en woonkamer gekoeld" <status>
-String  Overview_Upstairs					"x slaapkamers en badkamer verwarmd" <status>
+String 	Overview_Downstairs					"Werkkamer en woonkamer gekoeld"       <status>
+String  Overview_Upstairs					"x slaapkamers en badkamer verwarmd"   <status>
