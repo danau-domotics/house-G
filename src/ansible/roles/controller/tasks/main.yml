@@ -2,13 +2,12 @@
 # file: roles/controller/tasks/main.yml
 
 
-# Additional information on owfs:
-#   https://owfs.org/index_php_page_aliases.html
 - name: Install supporting programs
   apt:
     update_cache: no
     name: "{{ packages }}"
     state: present
+  register: support_progs
   become: true
   become_user: root
   become_method: sudo
@@ -16,7 +15,6 @@
     packages:
     - owhttpd
     - lsof
-#  when: "package_cache_updated.cache_updated | default(true)"
 
 
 # Default 1-wire port;
@@ -52,6 +50,7 @@
   with_items:
     #- 'server: w1'
     - 'server: device = /dev/ttyUSB0'
+  register: owfs_config
   become: true
   become_user: root
   become_method: sudo
@@ -99,10 +98,11 @@
     name: openhab2
     enabled: true
     state: stopped
+  register: stop_status
   become: true
   become_user: root
   become_method: sudo
-  #when: false
+  when: support_progs.changed or boot_config.changed or owfs_config.changed
 
 
 - name: Clear openHab cache
@@ -110,18 +110,7 @@
   become: true
   become_user: root
   become_method: sudo
-  #when: false
-
-
-- name: Restart openHab
-  service:
-    name: openhab2
-    enabled: true
-    #state: restarted
-    state: started
-  become: true
-  become_user: root
-  become_method: sudo
+  when: stop_status.changed
 
 
 - name: Reboot the openhab server
@@ -129,4 +118,14 @@
   become: true
   become_user: root
   become_method: sudo
-  #when: false
+  when: support_progs.changed or boot_config.changed or owfs_config.changed
+
+
+- name: Restart openHab if needed
+  service:
+    name: openhab2
+    enabled: true
+    state: started
+  become: true
+  become_user: root
+  become_method: sudo
