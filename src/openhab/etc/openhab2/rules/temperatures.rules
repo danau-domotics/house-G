@@ -14,7 +14,7 @@ when
 then
 	GF_LivingMid_Setpoint.sendCommand(20);
 	GF_Office_Setpoint.sendCommand(20);
-	FF_Bathroom_Offsetpoint.sendCommand(2);
+	FF_Bathroom_Setpoint.sendCommand(20);
 	FF_BedroomAft_Setpoint.sendCommand(16);
 	FF_BedroomFLeft_Setpoint.sendCommand(16);
 	FF_BedroomFRight_Setpoint.sendCommand(16);
@@ -23,7 +23,6 @@ then
 	// Initialize manual groups (based on power-saving settings)
 	GF_GarageRad_Circulate.sendCommand(OFF)
 	GF_HallwayRad_Circulate.sendCommand(OFF)
-	FF_Bathroom_Circulate.sendCommand(ON)
 	FF_BathroomRad_Circulate.sendCommand(OFF)
 	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
 end
@@ -36,7 +35,7 @@ when
 then
 	GF_LivingMid_Setpoint.sendCommand(21);
 	GF_Office_Setpoint.sendCommand(21);
-	FF_Bathroom_Offsetpoint.sendCommand(2);
+	FF_Bathroom_Setpoint.sendCommand(20);
 	FF_BedroomAft_Setpoint.sendCommand(20);
 	FF_BedroomFLeft_Setpoint.sendCommand(20);
 	FF_BedroomFRight_Setpoint.sendCommand(20);
@@ -45,7 +44,6 @@ then
 	// Initialize manual groups (based on no cooling in optional areas)
 	GF_GarageRad_Circulate.sendCommand(OFF)
 	GF_HallwayRad_Circulate.sendCommand(OFF)
-	FF_Bathroom_Circulate.sendCommand(OFF)
 	FF_BathroomRad_Circulate.sendCommand(OFF)
 	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
 end
@@ -56,7 +54,7 @@ when
 then
 	GF_LivingMid_Setpoint.sendCommand(10);
 	GF_Office_Setpoint.sendCommand(10);
-	FF_Bathroom_Offsetpoint.sendCommand(10);
+	FF_Bathroom_Setpoint.sendCommand(10);
 	FF_BedroomAft_Setpoint.sendCommand(10);
 	FF_BedroomFLeft_Setpoint.sendCommand(10);
 	FF_BedroomFRight_Setpoint.sendCommand(10);
@@ -65,7 +63,6 @@ then
 	// Initialize manual groups (based on no cooling in optional areas)
 	GF_GarageRad_Circulate.sendCommand(OFF)
 	GF_HallwayRad_Circulate.sendCommand(OFF)
-	FF_Bathroom_Circulate.sendCommand(OFF)
 	FF_BathroomRad_Circulate.sendCommand(OFF)
 	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
 end
