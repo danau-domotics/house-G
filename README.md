@@ -21,6 +21,7 @@ De woning is ook voorzien van zonne-panelen, maar die zijn (naast het doorsturen
 
 # Documenten
 
+- [Gebruikers Handleiding](docs/NL/user_manual)
 - [Systeem beschrijving](docs/NL/system_description)
 - [Onderhoud Handleiding](docs/NL/service_manual)
 - [Ondersteuning zoeken](docs/NL/support)
