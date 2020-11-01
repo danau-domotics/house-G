@@ -18,8 +18,8 @@ Frame label="Datum en Tijd" {
 		Switch item=Home_Pump               visibility=[Home_Mode=="manual"]
 	}
 	Frame label="Woonkamer" {
-		Setpoint item=GF_LivingMid_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
-		Setpoint item=GF_LivingMid_SetpointCool visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
+		Setpoint item=GF_LivingMid_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=30 step=0.1
+		Setpoint item=GF_LivingMid_SetpointCool visibility=[Home_Mode!="manual"] minValue=18 maxValue=60 step=0.1
 		Default item=GF_LivingMid_RoomTemp
 		Switch item=GF_LivingAft_Circulate   visibility=[Home_Mode=="manual"]
 		Switch item=GF_LivingMid_Circulate   visibility=[Home_Mode=="manual"]
@@ -27,44 +27,44 @@ Frame label="Datum en Tijd" {
 	}
 
 	Frame label="Werkkamer" {
-		Setpoint item=GF_Office_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
-		Setpoint item=GF_Office_SetpointCool visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
+		Setpoint item=GF_Office_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=30 step=0.1
+		Setpoint item=GF_Office_SetpointCool visibility=[Home_Mode!="manual"] minValue=18 maxValue=60 step=0.1
 		Default item=GF_Office_RoomTemp
 		Switch item=GF_Office_Circulate     visibility=[Home_Mode=="manual"]
 	}
 	
 	Frame label="Badkamer" {
-		Setpoint item=FF_Bathroom_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
-		Setpoint item=FF_Bathroom_SetpointCool visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
+		Setpoint item=FF_Bathroom_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=30 step=0.1
+		Setpoint item=FF_Bathroom_SetpointCool visibility=[Home_Mode!="manual"] minValue=18 maxValue=60 step=0.1
 		Default item=FF_Bathroom_RoomTemp
 		Switch item=FF_Bathroom_Circulate   visibility=[Home_Mode=="manual"]
 		Switch item=FF_BathroomRad_Circulate
 	}
 
 	Frame label="Slaapkamer Achter" {
-		Setpoint item=FF_BedroomAft_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
-		Setpoint item=FF_BedroomAft_SetpointCool visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
+		Setpoint item=FF_BedroomAft_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=30 step=0.1
+		Setpoint item=FF_BedroomAft_SetpointCool visibility=[Home_Mode!="manual"] minValue=18 maxValue=60 step=0.1
 		Default item=FF_BedroomAft_RoomTemp
 		Switch item=FF_BedroomAft_Circulate visibility=[Home_Mode=="manual"]
 	}
 	
 	Frame label="Slaapkamer LV" {
-		Setpoint item=FF_BedroomFLeft_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
-		Setpoint item=FF_BedroomFLeft_SetpointCool visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
+		Setpoint item=FF_BedroomFLeft_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=30 step=0.1
+		Setpoint item=FF_BedroomFLeft_SetpointCool visibility=[Home_Mode!="manual"] minValue=18 maxValue=60 step=0.1
 		Default item=FF_BedroomFLeft_RoomTemp
 		Switch item=FF_BedroomFLeft_Circulate visibility=[Home_Mode=="manual"]
 	}
 	
 	Frame label="Slaapkamer RV" {
-		Setpoint item=FF_BedroomFRight_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
-		Setpoint item=FF_BedroomFRight_SetpointCool visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
+		Setpoint item=FF_BedroomFRight_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=30 step=0.1
+		Setpoint item=FF_BedroomFRight_SetpointCool visibility=[Home_Mode!="manual"] minValue=18 maxValue=60 step=0.1
 		Default item=FF_BedroomFRight_RoomTemp
 		Switch item=FF_BedroomFRight_Circulate visibility=[Home_Mode=="manual"]
 	}
 
 	Frame label="Hal en Overloop" {
-		Setpoint item=FF_Corridor_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
-		Setpoint item=FF_Corridor_SetpointCool visibility=[Home_Mode!="manual"] minValue=8 maxValue=60 step=0.1
+		Setpoint item=FF_Corridor_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=30 step=0.1
+		Setpoint item=FF_Corridor_SetpointCool visibility=[Home_Mode!="manual"] minValue=18 maxValue=60 step=0.1
 		Default item=FF_Corridor_RoomTemp
 		Switch item=FF_Corridor_Circulate    visibility=[Home_Mode=="manual"]
 		Switch item=GF_Hallway_Circulate     visibility=[Home_Mode=="manual"]
