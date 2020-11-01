@@ -36,7 +36,6 @@ then
 	// Initialize manual groups (based on power-saving settings)
 	GF_GarageRad_Circulate.sendCommand(OFF)
 	GF_HallwayRad_Circulate.sendCommand(OFF)
-	FF_Bathroom_Circulate.sendCommand(ON)
 	FF_BathroomRad_Circulate.sendCommand(OFF)
 	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
 	
