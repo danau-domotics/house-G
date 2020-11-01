@@ -6,6 +6,15 @@ rule "OneWire Offline Tracking"
 when
 	Time cron "0/10 * * ? * * *"
 then
+	// Check if we should measure offline time
+	if(Zmeasurements_measureOfflineTime.state == NULL){
+		Zmeasurements_measureOfflineTime.sendCommand(OFF)
+		return;
+	}
+	else if(Zmeasurements_measureOfflineTime.state == OFF){
+		return;
+	}
+
 	val things = ScriptServiceUtil.getInstance.thingRegistry.getAll()
 	things.forEach[theThing |
 		val trackerNameSplit = theThing.getUID().toString().split(":")

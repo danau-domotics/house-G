@@ -125,6 +125,7 @@ Number FF_LaundryRoomRad_TimeToClose    "Tijd tot waskamer radiator sluiten [%.0
 Number GF_GarageRad_TimeToClose         "Tijd tot garage radiator sluiten [%.0f seconden]"         <time>  (Close_Counters)
 Number GF_HallwayRad_TimeToClose        "Tijd tot hal radiator sluiten [%.0f seconden]"            <time>  (Close_Counters)
 
+Switch Zmeasurements_measureOfflineTime        "Stabiliteitsmeting" <status> (Error_Time_Counters)
 Number bathroom_roomtemp_offlineTime           "BK-room [%.0f]"   <error>  (Error_Time_Counters)
 Number bathroom_floor_return_offlineTime       "BKf-ret [%.0f]"   <error>  (Error_Time_Counters)
 Number bathroom_radiator_return_offlineTime    "BKr-ret [%.0f]"   <error>  (Error_Time_Counters)
