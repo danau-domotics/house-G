@@ -36,10 +36,15 @@ De warmtepomp en warmtebron zijn berekend op normaal warmtegebruik.
 Het is mogelijk om een uitbreiding te kopen die de afgifte-besturing uitbreid met [Reed Relay](https://en.wikipedia.org/wiki/Reed_relay) sensoren bij ramen en deuren die automatisch de verwarming of koeling kunnen uitschakelen bij open ramen of deuren.
 
 
-
 ## Koeling vs zonne-warmte
 De volle zon zal het huis sterker verwarmen dan dat het koelings-systeem kan koelen. Indien het huis te sterk opwarmt in de zomer is het aan te raden om zonwering voor de ramen (of natuurlijke zonwering in de vorm van planten/bomen) aan te brengen.
 
 ### Mogelijke uitbreidingen
 Het is mogelijk om een uitbreiding te kopen die de afgifte-besturing uitbreid met bediening van zonwering. Hiervoor is het noodzakelijk dat de zonwering te bedienen is door middel van schakelcontacten of via een standaard draadloos protocol zoals ZigBee of Z-Wave.
 Naast zonwering is een gelijk soort uitbreiding mogelijk voor electrisch of draadloos bedienbare gordijnen, lamellen en rolgordijnen.
+
+
+## Koeling en radiatoren
+
+Nieuwe verwarmings-onderdelen (zoals vloer-verwarmings verdelers) zijn uitgevoerd met materialen die ook goed tegen koelen kunnen, de radiatoren in het huis zijn echter ouder dan de koelfunctie van het verwarmings-systeem.
+Het is mogelijk om radiatoren in te schakelen terwijl de warmtepomp aan het koelen is, maar in verband met het risico van corrosie (vanwege condens/dauw) wordt het niet aangeraden om radiatoren in te schakelen tijdens koeling.
