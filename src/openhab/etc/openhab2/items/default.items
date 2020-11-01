@@ -3,7 +3,7 @@ Group    Home                           "Huis"                <house>           
 Group    GF                             "Begane grond"        <groundfloor>      (Home)                             ["GroundFloor"]
 Group    FF                             "Eerste verdieping"   <firstfloor>       (Home)                             ["FirstFloor"]
 
-Group    Error_Time_Counters            "Error timers"        <error>
+Group    Error_Time_Counters            "Stabiliteits metingen"        <status>
 
 Group    Valves_Primary                 "Primare verwarming kleppen met pomp aansturing"  (Home)
 Group:Switch:OR(ON,OFF) Circuits_Primary "Primare verwarming circuits met pomp aansturing" (Home)
@@ -83,8 +83,8 @@ Switch   FF_LaundryRoomRad_Circulate    "Waskamer Radiator"                     
 Number   FF_LaundryRoomRad_Return       "Waskamer Radiator (Retour) [%.1f °C]"         <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:laundryroom_return:temperature"}
 
 // ""=Vorstbeveiliging, "auto"=Verwarmen en Koelen, "heat"=Verwarmen, "cool"=Koelen, "manual"=Handbediening
-String   Home_Mode                      "SysteemFunctie"                       <heating>
-Switch   Home_Pump                      "Pomp"                                 <pump>             {channel="onewire:basic:localbridge:gf_switches:digital0"}
+String   Home_Mode                      "Systeem Mode"                          <heating>
+Switch   Home_Pump                      "Pomp"                                  <pump>             {channel="onewire:basic:localbridge:gf_switches:digital0"}
 Number   Home_CircuitsOpen              "Afgiftecircuits volledig open [%.0f]"  <flow>
 
 Switch   GF_Office_Valve                "Werkkamer Vloer Klep"               <pressure>         (Valves_Primary)      {channel="onewire:basic:localbridge:gf_switches:digital1"}
