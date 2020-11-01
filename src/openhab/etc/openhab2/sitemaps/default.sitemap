@@ -4,11 +4,9 @@ sitemap default label="Huis" {
         Group item=AllTemps
     }
 
-Frame label="Status" {
+Frame label="Datum en Tijd" {
 		Text item=Time	
 		Text item=Date	
-		Text item=Overview_Downstairs
-		Text item=Overview_Upstairs		
 	}
 
 	Frame label="Bron" {

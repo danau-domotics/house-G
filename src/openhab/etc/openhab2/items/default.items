@@ -155,6 +155,3 @@ Number Zmeasurements_offLineTime               "Zmeasurements [%.0f]" <error>  (
 
 DateTime Time  "[%1$tH:%1$tM]"  <time> { channel="ntp:ntp:local:dateTime" }
 DateTime Date  "[%1$tA, %1$td-%1$tm-%1$tY]"  <calendar> { channel="ntp:ntp:local:dateTime" }
-
-String 	Overview_Downstairs					"Werkkamer en woonkamer gekoeld"       <status>
-String  Overview_Upstairs					"x slaapkamers en badkamer verwarmd"   <status>
