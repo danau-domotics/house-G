@@ -23,7 +23,7 @@ then
 	if (GF_Office_SetpointHeat.state == NULL)        { GF_Office_SetpointHeat.sendCommand(20) }
 	if (GF_Office_SetpointCool.state == NULL)        { GF_Office_SetpointCool.sendCommand(21) }
 	if (FF_Bathroom_SetpointHeat.state == NULL)      { FF_Bathroom_SetpointHeat.sendCommand(20) }
-	if (FF_Bathroom_SetpointCool.state == NULL)      { FF_Bathroom_SetpointCool.sendCommand(40) }
+	if (FF_Bathroom_SetpointCool.state == NULL)      { FF_Bathroom_SetpointCool.sendCommand(60) }
 	if (FF_BedroomAft_SetpointHeat.state == NULL)    { FF_BedroomAft_SetpointHeat.sendCommand(16) }
 	if (FF_BedroomAft_SetpointCool.state == NULL)    { FF_BedroomAft_SetpointCool.sendCommand(20) }
 	if (FF_BedroomFLeft_SetpointHeat.state == NULL)  { FF_BedroomFLeft_SetpointHeat.sendCommand(16) }
