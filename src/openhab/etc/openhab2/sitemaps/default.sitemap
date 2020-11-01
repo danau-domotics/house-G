@@ -77,7 +77,7 @@ Frame label="Datum en Tijd" {
 	}
 
 	Frame label="Garage" {
-		Default item=GF_GarageRad_RoomTemp
+		Default item=GF_Garage_RoomTemp
 		Switch item=GF_GarageRad_Circulate
 	}
 }

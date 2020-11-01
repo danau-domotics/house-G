@@ -32,13 +32,13 @@ Number   GF_LivingFront_Return          "Woonkamer (Voor Retour) [%.1f °C]"    
 Switch   GF_LivingAft_Circulate         "Woonkamer (Achter)"                           <flow>             (Circuits_Primary)
 Number   GF_LivingAft_Return            "Woonkamer (Serre/Schuifpui Retour) [%.1f °C]" <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:living_aft_return:temperature"}
 
-Switch   GF_GarageRad_Circulate         "Garage"                                       <flow>             (Circuits_Secundary)
-Number   GF_GarageRad_RoomTemp          "Garage [%.1f °C]"                             <temperature>      (AllTemps, Temperature_Other)   ["Temperature"]   {channel="onewire:basic:localbridge:garage_roomtemp:temperature"}
+Number   GF_Garage_RoomTemp             "Garage [%.1f °C]"                             <temperature>      (AllTemps, Temperature_Other)   ["Temperature"]   {channel="onewire:basic:localbridge:garage_roomtemp:temperature"}
+Switch   GF_GarageRad_Circulate         "Garage Radiator"                              <radiator>         (Circuits_Secundary)
 Number   GF_GarageRad_Return            "Garage Radiator (Retour) [%.1f °C]"           <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:garage_radiator_return:temperature"}
 
 Switch   GF_Hallway_Circulate           "Hal Vloer"                                    <flow>             (Circuits_Secundary)
 Number   GF_Hallway_Return              "Hal Vloer (Retour) [%.1f °C]"                 <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:hallway_floor_return:temperature"}
-Switch   GF_HallwayRad_Circulate        "Hal Radiator"                                 <flow>             (Circuits_Secundary)
+Switch   GF_HallwayRad_Circulate        "Hal Radiator"                                 <radiator>         (Circuits_Secundary)
 Number   GF_HallwayRad_Return           "Hal Radiator (Retour) [%.1f °C]"              <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:hallway_radiator_return:temperature"}
 
 Number   GF_Office_RoomTemp             "Werkkamer [%.1f °C]"                          <temperature>      (AllTemps, Temperature_Primary) ["Temperature"]   {channel="onewire:basic:localbridge:office_roomtemp:temperature"}
@@ -52,7 +52,7 @@ Switch   FF_Bathroom_Circulate          "Badkamer"                              
 Number   FF_Bathroom_SetpointHeat       "Badkamer Setpoint Verwarmen [%.1f °C]"        <bath>             (Setpoints, SetpointsHeat)
 Number   FF_Bathroom_SetpointCool       "Badkamer Setpoint Koelen [%.1f °C]"           <bath>             (Setpoints, SetpointsCool)
 Number   FF_Bathroom_Return             "Badkamer Vloer (Retour) [%.1f °C]"            <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:bathroom_floor_return:temperature"}
-Switch   FF_BathroomRad_Circulate       "Badkamer Radiator"                            <flow>
+Switch   FF_BathroomRad_Circulate       "Badkamer Radiator"                            <radiator>
 Number   FF_BathroomRad_Return          "Badkamer Radiator (Retour) [%.1f °C]"         <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:bathroom_radiator_return:temperature"}
 
 Number   FF_BedroomAft_RoomTemp         "Slaapkamer Achter [%.1f °C]"                  <temperature>      (AllTemps, Temperature_Primary) ["Temperature"]   {channel="onewire:basic:localbridge:bedroom_aft_roomtemp:temperature"}
@@ -79,7 +79,7 @@ Number   FF_Corridor_SetpointCool       "Overloop Setpoint Koelen [%.1f °C]"   
 Switch   FF_Corridor_Circulate          "Overloop"                                     <flow>             (Circuits_Primary)
 Number   FF_Corridor_Return             "Overloop (Retour) [%.1f °C]"                  <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:corridor_return:temperature"}
 
-Switch   FF_LaundryRoomRad_Circulate    "Waskamer Radiator"                            <flow>             (Circuits_Secundary)
+Switch   FF_LaundryRoomRad_Circulate    "Waskamer Radiator"                            <radiator>         (Circuits_Secundary)
 Number   FF_LaundryRoomRad_Return       "Waskamer Radiator (Retour) [%.1f °C]"         <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:laundryroom_return:temperature"}
 
 // ""=Vorstbeveiliging, "auto"=Verwarmen en Koelen, "heat"=Verwarmen, "cool"=Koelen, "manual"=Handbediening
@@ -98,12 +98,12 @@ Switch   FF_BedroomFRight_Valve         "Slaapkamer RV Vloer Klep"           <pr
 Switch   FF_BedroomFLeft_Valve          "Slaapkamer LV Vloer Klep"           <pressure>         (Valves_Primary)      {channel="onewire:basic:localbridge:ff_switches:digital4"}
 
 Switch   GF_Hallway_Valve               "Hal Vloer Klep"                     <pressure>         (Valves_Following)    {channel="onewire:basic:localbridge:gf_switches:digital2"}
-Switch   GF_HallwayRad_Valve            "Hal Radiator Klep"                  <radiator>         (Valves_Manual)       {channel="onewire:basic:localbridge:gf_switches:digital6"}
-Switch   GF_GarageRad_Valve             "Garage Radiator Klep"               <radiator>         (Valves_Manual)       {channel="onewire:basic:localbridge:gf_switches:digital7"}
+Switch   GF_HallwayRad_Valve            "Hal Radiator Klep"                  <pressure>         (Valves_Manual)       {channel="onewire:basic:localbridge:gf_switches:digital6"}
+Switch   GF_GarageRad_Valve             "Garage Radiator Klep"               <pressure>         (Valves_Manual)       {channel="onewire:basic:localbridge:gf_switches:digital7"}
 
 Switch   FF_Corridor_Valve              "Overloop Vloer Klep"                <pressure>         (Valves_Primary)      {channel="onewire:basic:localbridge:ff_switches:digital5"}
-Switch   FF_BathroomRad_Valve           "Badkamer Radiator Klep"             <radiator>         (Valves_Manual)       {channel="onewire:basic:localbridge:ff_switches:digital6"}
-Switch   FF_LaundryRoomRad_Valve        "Waskamer Radiator Klep"             <radiator>         (Valves_Manual)       {channel="onewire:basic:localbridge:ff_switches:digital7"}
+Switch   FF_BathroomRad_Valve           "Badkamer Radiator Klep"             <pressure>         (Valves_Manual)       {channel="onewire:basic:localbridge:ff_switches:digital6"}
+Switch   FF_LaundryRoomRad_Valve        "Waskamer Radiator Klep"             <pressure>         (Valves_Manual)       {channel="onewire:basic:localbridge:ff_switches:digital7"}
 
 Number GF_Office_TimeToOpen             "Resterende tijd werkkamer circuit openen [%.0f seconden]"          <time>  (Valve_Counters)
 Number GF_LivingMid_TimeToOpen          "Resterende tijd woonkamer circuit (mid) openen [%.0f seconden]"    <time>  (Valve_Counters)
