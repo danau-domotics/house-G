@@ -7,9 +7,10 @@ Group    Error_Time_Counters            "Error timers"        <error>
 
 Group    Valves_Primary                 "Primare verwarming kleppen met pomp aansturing"  (Home)
 Group:Switch:OR(ON,OFF) Circuits_Primary "Primare verwarming circuits met pomp aansturing" (Home)
-Group    Circuits_Secundary
+Group:Switch:OR(ON,OFF) Circuits_Secundary "Handmatige radiatoren actief"                  <radiator> (Home)
 
-Group:Number:MIN   Valve_Counters       "Resterende tijd circuit(s) openen [%.0f seconden]" (Home)
+Group:Number:MIN   Valve_Counters       "Resterende tijd circuit(s) openen [%.0f seconden]"       <time> (Home)
+Group:Number:MIN   Close_Counters       "Tijd tot sluiten eerstvolgende radiator [%.0f seconden]" <time> (Home)
 
 Group    Temperature_Primary            "Kamertemperaturen" (Home)
 Group    Temperature_Other              "Overige temperaturen" (Home)
@@ -81,9 +82,8 @@ Number   FF_Corridor_Return             "Overloop (Retour) [%.1f °C]"          
 Switch   FF_LaundryRoomRad_Circulate    "Waskamer Radiator"                            <flow>             (Circuits_Secundary)
 Number   FF_LaundryRoomRad_Return       "Waskamer Radiator (Retour) [%.1f °C]"         <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:laundryroom_return:temperature"}
 
-// ""=Vorstbeveiliging, "heat"=Verwarmen, "cool"=Koelen, "manual"=Handbediening
+// ""=Vorstbeveiliging, "auto"=Verwarmen en Koelen, "heat"=Verwarmen, "cool"=Koelen, "manual"=Handbediening
 String   Home_Mode                      "SysteemFunctie"                       <heating>
-
 Switch   Home_Pump                      "Pomp"                                 <pump>             {channel="onewire:basic:localbridge:gf_switches:digital0"}
 Number   Home_CircuitsOpen              "Afgiftecircuits volledig open [%.0f]"  <flow>
 
@@ -98,12 +98,12 @@ Switch   FF_BedroomFRight_Valve         "Slaapkamer RV Vloer Klep"           <pr
 Switch   FF_BedroomFLeft_Valve          "Slaapkamer LV Vloer Klep"           <pressure>         (Valves_Primary)      {channel="onewire:basic:localbridge:ff_switches:digital4"}
 
 Switch   GF_Hallway_Valve               "Hal Vloer Klep"                     <pressure>         (Valves_Following)    {channel="onewire:basic:localbridge:gf_switches:digital2"}
-Switch   GF_HallwayRad_Valve            "Hal Radiator Klep"                  <pressure>         (Valves_Manual)       {channel="onewire:basic:localbridge:gf_switches:digital6"}
-Switch   GF_GarageRad_Valve             "Garage Radiator Klep"               <pressure>         (Valves_Manual)       {channel="onewire:basic:localbridge:gf_switches:digital7"}
+Switch   GF_HallwayRad_Valve            "Hal Radiator Klep"                  <radiator>         (Valves_Manual)       {channel="onewire:basic:localbridge:gf_switches:digital6"}
+Switch   GF_GarageRad_Valve             "Garage Radiator Klep"               <radiator>         (Valves_Manual)       {channel="onewire:basic:localbridge:gf_switches:digital7"}
 
 Switch   FF_Corridor_Valve              "Overloop Vloer Klep"                <pressure>         (Valves_Primary)      {channel="onewire:basic:localbridge:ff_switches:digital5"}
-Switch   FF_BathroomRad_Valve           "Badkamer Radiator Klep"             <pressure>         (Valves_Manual)       {channel="onewire:basic:localbridge:ff_switches:digital6"}
-Switch   FF_LaundryRoomRad_Valve        "Waskamer Radiator Klep"             <pressure>         (Valves_Manual)       {channel="onewire:basic:localbridge:ff_switches:digital7"}
+Switch   FF_BathroomRad_Valve           "Badkamer Radiator Klep"             <radiator>         (Valves_Manual)       {channel="onewire:basic:localbridge:ff_switches:digital6"}
+Switch   FF_LaundryRoomRad_Valve        "Waskamer Radiator Klep"             <radiator>         (Valves_Manual)       {channel="onewire:basic:localbridge:ff_switches:digital7"}
 
 Number GF_Office_TimeToOpen             "Resterende tijd werkkamer circuit openen [%.0f seconden]"          <time>  (Valve_Counters)
 Number GF_LivingMid_TimeToOpen          "Resterende tijd woonkamer circuit (mid) openen [%.0f seconden]"    <time>  (Valve_Counters)
@@ -119,6 +119,11 @@ Number FF_LaundryRoomRad_TimeToOpen     "Resterende tijd waskamer circuit openen
 Number GF_Hallway_TimeToOpen            "Resterende tijd hal circuit openen [%.0f seconden]"                <time>  (Valve_Counters)
 Number GF_GarageRad_TimeToOpen          "Resterende tijd garage radiator openen [%.0f seconden]"            <time>  (Valve_Counters)
 Number GF_HallwayRad_TimeToOpen         "Resterende tijd hal radiator openen [%.0f seconden]"               <time>  (Valve_Counters)
+
+Number FF_BathroomRad_TimeToClose       "Tijd tot badkamer radiator sluiten [%.0f seconden]"                <time>  (Close_Counters)
+Number FF_LaundryRoomRad_TimeToClose    "Tijd tot waskamer circuit sluiten [%.0f seconden]"                 <time>  (Close_Counters)
+Number GF_GarageRad_TimeToClose         "Tijd tot garage radiator sluiten [%.0f seconden]"                  <time>  (Close_Counters)
+Number GF_HallwayRad_TimeToClose        "Tijd tot hal radiator sluiten [%.0f seconden]"                     <time>  (Close_Counters)
 
 Number bathroom_roomtemp_offlineTime           "BK-room [%.0f]"   <error>  (Error_Time_Counters)
 Number bathroom_floor_return_offlineTime       "BKf-ret [%.0f]"   <error>  (Error_Time_Counters)

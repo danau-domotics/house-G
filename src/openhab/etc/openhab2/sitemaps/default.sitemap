@@ -13,10 +13,11 @@ Frame label="Status" {
 
 	Frame label="Bron" {
 		Default item=Home_SupplyTemp
-		Selection item=Home_Mode mappings=[""="Vorstbeveiliging", "auto"="Automatisch (Verwarmen en Koelen)", "heat"="Verwarmen", "cool"="Koelen", "manual"="Handbediening"] visibility=[Home_Automatic!= ON]
-		Switch item=Home_Pump               visibility=[Home_Mode=="manual"]
+		Selection item=Home_Mode mappings=[""="Vorstbeveiliging", "auto"="Automatisch (Verwarmen en Koelen)", "heat"="Verwarmen", "cool"="Koelen", "manual"="Handbediening"]
 		Default item=Home_CircuitsOpen
 		Default item=Valve_Counters
+		Default item=Close_Counters
+		Switch item=Home_Pump               visibility=[Home_Mode=="manual"]
 	}
 	Frame label="Woonkamer" {
 		Setpoint item=GF_LivingMid_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=40 step=0.1
