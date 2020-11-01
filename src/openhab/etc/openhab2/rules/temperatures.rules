@@ -136,6 +136,14 @@ then
 		if(tempRead + hysterDelta < setpointCoolItem.state)
 			doCirculate = OFF;
 	}
+	else if(Home_Mode.state.toString().equals("auto"))
+	{
+		// TODO: add source temperature read here...
+		if(tempRead - hysterDelta > setpointCoolItem.state)
+			doCirculate = ON;
+		if(tempRead + hysterDelta < setpointHeatItem.state)
+			doCirculate = OFF;
+	}
 	else if(tempRead - hysterDelta > freezeProtection)
 	{
 		// No circulation if we are not heating (regular or freeze-protection) or cooling

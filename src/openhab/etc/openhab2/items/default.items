@@ -84,7 +84,6 @@ Number   FF_LaundryRoomRad_Return       "Waskamer Radiator (Retour) [%.1f °C]" 
 // ""=Vorstbeveiliging, "heat"=Verwarmen, "cool"=Koelen, "manual"=Handbediening
 String   Home_Mode                      "SysteemFunctie"                       <heating>
 
-Switch   Home_Automatic                 "Verwarmen/koelen automatisch bepalen" <settings>         //{channel="onewire:basic:localbridge:gf_switches:digital0"}
 Switch   Home_Pump                      "Pomp"                                 <pump>             {channel="onewire:basic:localbridge:gf_switches:digital0"}
 Number   Home_CircuitsOpen              "Afgiftecircuits volledig open [%.0f]"  <flow>
 

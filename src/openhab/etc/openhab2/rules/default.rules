@@ -44,11 +44,4 @@ then
 	//Home_Mode.sendCommand("")
 end
 
-rule "Switch automatic set to heating/cooling"
-when
-	Item Home_Automatic changed to ON
-then	// lookup temperature of supply; if it is lower or equal to .... the system is cooling. and if bigger as ... then home_mode should be set to heating
-	if (Home_SupplyTemp.state <= 30 )	{ Home_Mode.sendCommand("cool") } 	
-	else { Home_Mode.sendCommand("heat") }
-end 
 
