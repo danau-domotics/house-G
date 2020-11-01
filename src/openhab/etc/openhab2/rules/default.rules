@@ -18,13 +18,20 @@ when
 	System started
 then
 	// Initialize Setpoints
-	if (GF_LivingMid_Setpoint.state == NULL)     { GF_LivingMid_Setpoint.sendCommand(20) }
-	if (GF_Office_Setpoint.state == NULL)        { GF_Office_Setpoint.sendCommand(20) }
-	if (FF_Bathroom_Setpoint.state == NULL)      { FF_Bathroom_Setpoint.sendCommand(20) }
-	if (FF_BedroomAft_Setpoint.state == NULL)    { FF_BedroomAft_Setpoint.sendCommand(16) }
-	if (FF_BedroomFLeft_Setpoint.state == NULL)  { FF_BedroomFLeft_Setpoint.sendCommand(16) }
-	if (FF_BedroomFRight_Setpoint.state == NULL) { FF_BedroomFRight_Setpoint.sendCommand(16) }
-	if (FF_Corridor_Setpoint.state == NULL)      { FF_Corridor_Setpoint.sendCommand(16) }
+	if (GF_LivingMid_SetpointHeat.state == NULL)     { GF_LivingMid_SetpointHeat.sendCommand(20.4) }
+	if (GF_LivingMid_SetpointCool.state == NULL)     { GF_LivingMid_SetpointCool.sendCommand(21) }
+	if (GF_Office_SetpointHeat.state == NULL)        { GF_Office_SetpointHeat.sendCommand(20) }
+	if (GF_Office_SetpointCool.state == NULL)        { GF_Office_SetpointCool.sendCommand(21) }
+	if (FF_Bathroom_SetpointHeat.state == NULL)      { FF_Bathroom_SetpointHeat.sendCommand(20) }
+	if (FF_Bathroom_SetpointCool.state == NULL)      { FF_Bathroom_SetpointCool.sendCommand(40) }
+	if (FF_BedroomAft_SetpointHeat.state == NULL)    { FF_BedroomAft_SetpointHeat.sendCommand(16) }
+	if (FF_BedroomAft_SetpointCool.state == NULL)    { FF_BedroomAft_SetpointCool.sendCommand(20) }
+	if (FF_BedroomFLeft_SetpointHeat.state == NULL)  { FF_BedroomFLeft_SetpointHeat.sendCommand(16) }
+	if (FF_BedroomFLeft_SetpointCool.state == NULL)  { FF_BedroomFLeft_SetpointCool.sendCommand(20) }
+	if (FF_BedroomFRight_SetpointHeat.state == NULL) { FF_BedroomFRight_SetpointHeat.sendCommand(16) }
+	if (FF_BedroomFRight_SetpointCool.state == NULL) { FF_BedroomFRight_SetpointCool.sendCommand(20) }
+	if (FF_Corridor_SetpointHeat.state == NULL)      { FF_Corridor_SetpointHeat.sendCommand(16) }
+	if (FF_Corridor_SetpointCool.state == NULL)      { FF_Corridor_SetpointCool.sendCommand(21) }
 	
 	// Initialize manual groups (based on power-saving settings)
 	GF_GarageRad_Circulate.sendCommand(OFF)

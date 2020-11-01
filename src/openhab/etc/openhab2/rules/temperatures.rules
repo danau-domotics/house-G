@@ -12,15 +12,7 @@ rule "Switch to heating mode"
 when
 	Item Home_Mode changed to heat
 then
-	GF_LivingMid_Setpoint.sendCommand(20);
-	GF_Office_Setpoint.sendCommand(20);
-	FF_Bathroom_Setpoint.sendCommand(20);
-	FF_BedroomAft_Setpoint.sendCommand(16);
-	FF_BedroomFLeft_Setpoint.sendCommand(16);
-	FF_BedroomFRight_Setpoint.sendCommand(16);
-	FF_Corridor_Setpoint.sendCommand(16);
-	
-	// Initialize manual groups (based on power-saving settings)
+	// Initialize manual groups to off
 	GF_GarageRad_Circulate.sendCommand(OFF)
 	GF_HallwayRad_Circulate.sendCommand(OFF)
 	FF_BathroomRad_Circulate.sendCommand(OFF)
@@ -33,39 +25,25 @@ rule "Switch to cooling mode"
 when
 	Item Home_Mode changed to cool
 then
-	GF_LivingMid_Setpoint.sendCommand(21);
-	GF_Office_Setpoint.sendCommand(21);
-	FF_Bathroom_Setpoint.sendCommand(20);
-	FF_BedroomAft_Setpoint.sendCommand(20);
-	FF_BedroomFLeft_Setpoint.sendCommand(20);
-	FF_BedroomFRight_Setpoint.sendCommand(20);
-	FF_Corridor_Setpoint.sendCommand(20);
-
 	// Initialize manual groups (based on no cooling in optional areas)
 	GF_GarageRad_Circulate.sendCommand(OFF)
 	GF_HallwayRad_Circulate.sendCommand(OFF)
 	FF_BathroomRad_Circulate.sendCommand(OFF)
 	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
 end
+
 
 rule "Switch to anti-freeze mode"
 when
 	Item Home_Mode changed to ""
 then
-	GF_LivingMid_Setpoint.sendCommand(10);
-	GF_Office_Setpoint.sendCommand(10);
-	FF_Bathroom_Setpoint.sendCommand(10);
-	FF_BedroomAft_Setpoint.sendCommand(10);
-	FF_BedroomFLeft_Setpoint.sendCommand(10);
-	FF_BedroomFRight_Setpoint.sendCommand(10);
-	FF_Corridor_Setpoint.sendCommand(10);
-
-	// Initialize manual groups (based on no cooling in optional areas)
+	// Initialize manual groups (based on no activity in optional areas)
 	GF_GarageRad_Circulate.sendCommand(OFF)
 	GF_HallwayRad_Circulate.sendCommand(OFF)
 	FF_BathroomRad_Circulate.sendCommand(OFF)
 	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
 end
+
 
 rule "Room Thermostat Updates"
 when
@@ -73,7 +51,7 @@ when
 	Member of Temperature_Primary changed
 then
 	// Get the base-name of the room we are controlling.
-	var String baseName = triggeringItem.name.toString.replaceAll("_RoomTemp", "").replaceAll("_Setpoint", "").replaceAll("_Offsetpoint", "").replaceAll("_Return", "");
+	var String baseName = triggeringItem.name.toString.replaceAll("_RoomTemp", "").replaceAll("_SetpointHeat", "").replaceAll("_SetpointCool", "").replaceAll("_Return", "");
 	
 	// Get the corresponding temperature sensor item
 	var String tempSensorName = baseName + "_RoomTemp";
@@ -83,11 +61,18 @@ then
 		return;
 	}
 	
-	// Get the corresponding setpoint item
-	var String setPointName = baseName + "_Setpoint";
-	var setPointItem = ScriptServiceUtil.getItemRegistry.getItem(setPointName);
-	if(setPointItem === null){
-		logError("temperatures.rules", "Setpoint item {} not found!", setPointName);
+	// Get the corresponding setpoint item for heating
+	var String setpointHeatName = baseName + "_SetpointHeat";
+	var setpointHeatItem = ScriptServiceUtil.getItemRegistry.getItem(setpointHeatName);
+	if(setpointHeatItem === null){
+		logError("temperatures.rules", "Setpoint item {} not found!", setpointHeatName);
+		return;
+	}
+	// Get the corresponding setpoint item for cooling
+	var String setpointCoolName = baseName + "_SetpointCool";
+	var setpointCoolItem = ScriptServiceUtil.getItemRegistry.getItem(setpointCoolName);
+	if(setpointCoolItem === null){
+		logError("temperatures.rules", "Setpoint item {} not found!", setpointCoolName);
 		return;
 	}
 	var String circulateName = baseName + "_Circulate";
@@ -102,7 +87,8 @@ then
 		return;
 	}
 
-	var Number setPoint = setPointItem.state;
+	var Number setpointHeat = setpointHeatItem.state;
+	var Number setpointCool = setpointCoolItem.state;
 	var Number tempRead = tempSensorItem.state;
 
 	// Keep doing what we were doing, except when overruled by cooling or heating limits.
@@ -121,28 +107,33 @@ then
 		// Protection against freezing has priority over all else.
 		doCirculate = ON;
 	}
-	else if(setPoint === null)
-	{
-		logError("temperatures.rules", "No valid setpoint for {}!", baseName);
-		doCirculate = OFF;
-	}
 	else if(tempRead === null)
 	{
 		logError("temperatures.rules", "No known temperature for {}!", baseName);
 		doCirculate = OFF;
 	}
-	else if(Home_Mode.state.toString().equals("cool"))
+	else if(setpointHeat === null)
 	{
-		if(tempRead - hysterDelta > setPointItem.state)
-			doCirculate = ON;
-		if(tempRead + hysterDelta < setPointItem.state)
-			doCirculate = OFF;
-	}	
+		logError("temperatures.rules", "No valid heating setpoint for {}!", baseName);
+		doCirculate = OFF;
+	}
 	else if(Home_Mode.state.toString().equals("heat"))
 	{
-		if(tempRead + hysterDelta < setPointItem.state)
+		if(tempRead + hysterDelta < setpointHeatItem.state)
 			doCirculate = ON;
-		if(tempRead - hysterDelta > setPointItem.state)
+		if(tempRead - hysterDelta > setpointHeatItem.state)
+			doCirculate = OFF;
+	}
+	else if(setpointCool === null)
+	{
+		logError("temperatures.rules", "No valid cooling setpoint for {}!", baseName);
+		doCirculate = OFF;
+	}
+	else if(Home_Mode.state.toString().equals("cool"))
+	{
+		if(tempRead - hysterDelta > setpointCoolItem.state)
+			doCirculate = ON;
+		if(tempRead + hysterDelta < setpointCoolItem.state)
 			doCirculate = OFF;
 	}
 	else if(tempRead - hysterDelta > freezeProtection)

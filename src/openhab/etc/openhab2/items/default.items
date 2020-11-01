@@ -16,11 +16,14 @@ Group    Temperature_Other              "Overige temperaturen" (Home)
 Group    ReturnTemps                    "Retour Temperaturen" (Home)
 Group    AllTemps                       "Alle Temperaturen" (Home)
 Group    Setpoints                      "Setpoints" (Home)
+Group    SetpointsHeat                  "Setpoints Verwarmen" (Home)
+Group    SetpointsCool                  "Setpoints Koelen" (Home)
 
 Number   Home_SupplyTemp                "Aanvoer Temperatuur [%.1f °C]"                <flowpipe>         (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:supply_temp:temperature"}
 
 Number   GF_LivingMid_RoomTemp          "Woonkamer [%.1f °C]"                          <temperature>      (AllTemps, Temperature_Primary) ["Temperature"]   {channel="onewire:basic:localbridge:living_roomtemp:temperature"}
-Number   GF_LivingMid_Setpoint          "Woonkamer Setpoint [%.1f °C]"                 <sofa>             (Setpoints)                     ["Temperature"]
+Number   GF_LivingMid_SetpointHeat      "Woonkamer Setpoint Verwarmen [%.1f °C]"       <sofa>             (Setpoints, SetpointsHeat)      ["Temperature"]
+Number   GF_LivingMid_SetpointCool      "Woonkamer Setpoint Koelen [%.1f °C]"          <sofa>             (Setpoints, SetpointsCool)      ["Temperature"]
 Switch   GF_LivingMid_Circulate         "Woonkamer"                                    <flow>             (Circuits_Primary)
 Number   GF_LivingMid_Return            "Woonkamer (Mid Retour) [%.1f °C]"             <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:living_mid_return:temperature"}
 Switch   GF_LivingFront_Circulate       "Woonkamer (Voor)"                             <flow>             (Circuits_Primary)
@@ -38,34 +41,40 @@ Switch   GF_HallwayRad_Circulate        "Hal Radiator"                          
 Number   GF_HallwayRad_Return           "Hal Radiator (Retour) [%.1f °C]"              <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:hallway_radiator_return:temperature"}
 
 Number   GF_Office_RoomTemp             "Werkkamer [%.1f °C]"                          <temperature>      (AllTemps, Temperature_Primary) ["Temperature"]   {channel="onewire:basic:localbridge:office_roomtemp:temperature"}
-Number   GF_Office_Setpoint             "Werkkamer Setpoint [%.1f °C]"                 <office>           (Setpoints)                     ["Temperature"]
+Number   GF_Office_SetpointHeat         "Werkkamer Setpoint Verwarmen [%.1f °C]"       <office>           (Setpoints, SetpointsHeat)      ["Temperature"]
+Number   GF_Office_SetpointCool         "Werkkamer Setpoint Koelen [%.1f °C]"          <office>           (Setpoints, SetpointsCool)      ["Temperature"]
 Switch   GF_Office_Circulate            "Werkkamer"                                    <flow>             (Circuits_Primary)
 Number   GF_Office_Return               "Werkkamer (Retour) [%.1f °C]"                 <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:office_return:temperature"}
 
 Number   FF_Bathroom_RoomTemp           "Badkamer [%.1f °C]"                           <temperature>      (AllTemps, Temperature_Primary) ["Temperature"]   {channel="onewire:basic:localbridge:bathroom_roomtemp:temperature"}
 Switch   FF_Bathroom_Circulate          "Badkamer"                                     <flow>             (Circuits_Primary)
-Number   FF_Bathroom_Setpoint           "Badkamer Setpoint [%.1f °C]"                  <bath>             (FF_Bathroom)
+Number   FF_Bathroom_SetpointHeat       "Badkamer Setpoint Verwarmen [%.1f °C]"        <bath>             (Setpoints, SetpointsHeat)
+Number   FF_Bathroom_SetpointCool       "Badkamer Setpoint Koelen [%.1f °C]"           <bath>             (Setpoints, SetpointsCool)
 Number   FF_Bathroom_Return             "Badkamer Vloer (Retour) [%.1f °C]"            <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:bathroom_floor_return:temperature"}
 Switch   FF_BathroomRad_Circulate       "Badkamer Radiator"                            <flow>
 Number   FF_BathroomRad_Return          "Badkamer Radiator (Retour) [%.1f °C]"         <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:bathroom_radiator_return:temperature"}
 
 Number   FF_BedroomAft_RoomTemp         "Slaapkamer Achter [%.1f °C]"                  <temperature>      (AllTemps, Temperature_Primary) ["Temperature"]   {channel="onewire:basic:localbridge:bedroom_aft_roomtemp:temperature"}
-Number   FF_BedroomAft_Setpoint         "Slaapkamer Achter Setpoint [%.1f °C]"         <bedroom>          (Setpoints)                     ["Temperature"]
+Number   FF_BedroomAft_SetpointHeat     "Slaapkamer Achter Setpoint Verwarmen [%.1f °C]" <bedroom>        (Setpoints, SetpointsHeat)      ["Temperature"]
+Number   FF_BedroomAft_SetpointCool     "Slaapkamer Achter Setpoint Koelen [%.1f °C]"  <bedroom>          (Setpoints, SetpointsCool)      ["Temperature"]
 Switch   FF_BedroomAft_Circulate        "Slaapkamer Achter"                            <flow>             (Circuits_Primary)
 Number   FF_BedroomAft_Return           "Slaapkamer Achter (Retour) [%.1f °C]"         <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:bedroom_aft_return:temperature"}
 
 Number   FF_BedroomFLeft_RoomTemp       "Slaapkamer LV [%.1f °C]"                      <temperature>      (AllTemps, Temperature_Primary) ["Temperature"]   {channel="onewire:basic:localbridge:bedroom_fl_roomtemp:temperature"}
-Number   FF_BedroomFLeft_Setpoint       "Slaapkamer LV Setpoint [%.1f °C]"             <bedroom_orange>   (Setpoints)                     ["Temperature"]
+Number   FF_BedroomFLeft_SetpointHeat   "Slaapkamer LV Setpoint Verwarmen [%.1f °C]"   <bedroom_orange>   (Setpoints, SetpointsHeat)      ["Temperature"]
+Number   FF_BedroomFLeft_SetpointCool   "Slaapkamer LV Setpoint Koelen [%.1f °C]"      <bedroom_orange>   (Setpoints, SetpointsCool)      ["Temperature"]
 Switch   FF_BedroomFLeft_Circulate      "Slaapkamer LV"                                <flow>             (Circuits_Primary)
 Number   FF_BedroomFLeft_Return         "Slaapkamer LV (Retour) [%.1f °C]"             <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:bedroom_fl_return:temperature"}
 
 Number   FF_BedroomFRight_RoomTemp      "Slaapkamer RV [%.1f °C]"                      <temperature>      (AllTemps, Temperature_Primary) ["Temperature"]   {channel="onewire:basic:localbridge:bedroom_fr_roomtemp:temperature"}
-Number   FF_BedroomFRight_Setpoint      "Slaapkamer RV Setpoint [%.1f °C]"             <bedroom_blue>     (Setpoints)                     ["Temperature"]
+Number   FF_BedroomFRight_SetpointHeat  "Slaapkamer RV Setpoint Verwarmen [%.1f °C]"   <bedroom_blue>     (Setpoints, SetpointsHeat)      ["Temperature"]
+Number   FF_BedroomFRight_SetpointCool  "Slaapkamer RV Setpoint Koelen [%.1f °C]"      <bedroom_blue>     (Setpoints, SetpointsCool)      ["Temperature"]
 Switch   FF_BedroomFRight_Circulate     "Slaapkamer RV"                                <flow>             (Circuits_Primary)
 Number   FF_BedroomFRight_Return        "Slaapkamer RV (Retour) [%.1f °C]"             <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:bedroom_fr_return:temperature"}
 
 Number   FF_Corridor_RoomTemp           "Overloop [%.1f °C]"                           <temperature>      (AllTemps, Temperature_Primary) ["Temperature"]   {channel="onewire:basic:localbridge:corridor_roomtemp:temperature"}
-Number   FF_Corridor_Setpoint           "Overloop Setpoint [%.1f °C]"                  <corridor>         (Setpoints)                     ["Temperature"]
+Number   FF_Corridor_SetpointHeat       "Overloop Setpoint Verwarmen [%.1f °C]"        <corridor>         (Setpoints, SetpointsHeat)      ["Temperature"]
+Number   FF_Corridor_SetpointCool       "Overloop Setpoint Koelen [%.1f °C]"           <corridor>         (Setpoints, SetpointsCool)      ["Temperature"]
 Switch   FF_Corridor_Circulate          "Overloop"                                     <flow>             (Circuits_Primary)
 Number   FF_Corridor_Return             "Overloop (Retour) [%.1f °C]"                  <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:corridor_return:temperature"}
 
@@ -73,7 +82,7 @@ Switch   FF_LaundryRoomRad_Circulate    "Waskamer Radiator"                     
 Number   FF_LaundryRoomRad_Return       "Waskamer Radiator (Retour) [%.1f °C]"         <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:laundryroom_return:temperature"}
 
 // ""=Vorstbeveiliging, "heat"=Verwarmen, "cool"=Koelen, "manual"=Handbediening
-String   Home_Mode                      "SysteemFunctie"                     <heating>
+String   Home_Mode                      "SysteemFunctie"                       <heating>
 
 Switch   Home_Automatic                 "Verwarmen/koelen automatisch bepalen" <settings>         //{channel="onewire:basic:localbridge:gf_switches:digital0"}
 Switch   Home_Pump                      "Pomp"                                 <pump>             {channel="onewire:basic:localbridge:gf_switches:digital0"}
