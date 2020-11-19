@@ -15,6 +15,8 @@ Huis G is voorzien van een UTP-netwerk met 3 standaard UTP patch panelen en 2 ro
 
 Elke ruimte is via UTP aangesloten op 1 van de patch-panelen en patchpanelen G en W zijn beiden verbonden met paneel M.
 
+De [patch punten CSV-file](../../../data/patch_punten.csv) geeft een overzicht van hoe de patch-punten in de verschillende ruimtes aangesloten zijn op de patch-panelen.
+
 
 ## Domotica netwerk.
 
@@ -44,12 +46,7 @@ Gebruikte componenten in het systeem:
 
 ### Centrale Verwarming Pomp en Verdelers
 
-Deze [CSV-file](../../../data/cv_verdelers.csv) geeft een overzicht van de koppelingen tussen de vloerverwarming actuatoren en de domotica relay borden.
+De [cv verdelers CSV-file](../../../data/cv_verdelers.csv) geeft een overzicht van de koppelingen tussen de vloerverwarming actuatoren en de domotica relay borden.
 
 Het actuator type geeft aan of de actuator normaal NO (normaal open) of NC (normaal gesloten) is als er geen stroom op de actuator staat.
 De circulatie-pomp van het afgiftesysteem zit op relay 1 van het relay bord in de garage.
-
-
-
-
-- [Overzicht van CV verdelers](cv_verdelers.md)

@@ -1,0 +1,19 @@
+Code,Kamer
+M,Meterkast
+G,Garage
+W,Wasruimte
+BK,badkamer
+HE,"hal, entree"
+HO,"hal, overloop 1e verdieping"
+KS,"keuken, serre"
+SA,"slaapkamer, achter, met groot balkon"
+SK,werkkamer/studeerkamer/slaapkamer beneden
+SL,"slaapkamer, linksvoor, klein (Frans) balkon"
+SR,"slaapkamer, rechtsvoor, klein normaal raam"
+WE,"woonkamer, eethoek"
+WS,"woonkamer, schuifpui"
+WZ,"woonkamer, zithoek"
+ZA,"zolder, achter (kant van de achtertuin/garage)"
+ZL,"zolder, links (kant van de zonnepanelen)"
+ZR,"zolder, rechts (kant van het zolder dakraam)"
+ZV,"zolder, voor (voorkant van het huis)"
