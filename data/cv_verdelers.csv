@@ -1,12 +1,4 @@
 verdeler,positie (vanaf links),zone code,aansluiting / zone,actuator,relay
-W (boven),1,BK-v,Badkamer - vloer,NO,2
-W (boven),2,,Ongebruikt,,
-W (boven),3,W-r,Waskamer - radiator,NC,8
-W (boven),4,BK-r,Badkamer - radiator,NO,7
-W (boven),5,SL,Slaapkamer LV(linksvoor) vloer,NC,5
-W (boven),6,SR,Slaapkamer RV (rechtsvoor) vloer,NC,4
-W (boven),7,HO,Hal Overloop vloer,NC,6
-W (boven),8,SA,Slaapkamer achter vloer,NC,3
 G (beneden),1,G-rb,Garage radiator burenmuur,NC,2
 G (beneden),2,,Ongebruikt,,
 G (beneden),3,,Ongebruikt,,
@@ -18,3 +10,11 @@ G (beneden),8,,Woonkamer Midden (Eetkamer) vloer,NO,5
 G (beneden),9,,"Serre, Schuifpui vloer",NO,4
 G (beneden),10,HE-v,Entree/Hal vloer,NO,3
 G (beneden),11,SK,Werkkamer/Kantoor vloer,NO,2
+W (boven),1,BK-v,Badkamer - vloer,NO,2
+W (boven),2,,Ongebruikt,,
+W (boven),3,W-r,Waskamer - radiator,NC,8
+W (boven),4,BK-r,Badkamer - radiator,NO,7
+W (boven),5,SL,Slaapkamer LV(linksvoor) vloer,NC,5
+W (boven),6,SR,Slaapkamer RV (rechtsvoor) vloer,NC,4
+W (boven),7,HO,Hal Overloop vloer,NC,6
+W (boven),8,SA,Slaapkamer achter vloer,NC,3
