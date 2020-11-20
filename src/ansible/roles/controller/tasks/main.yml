@@ -4,7 +4,7 @@
 
 - name: Install supporting programs
   apt:
-    update_cache: no
+    update_cache: yes
     name: "{{ packages }}"
     state: present
   register: support_progs
@@ -15,6 +15,8 @@
     packages:
     - owhttpd
     - lsof
+    - hostapd
+    - dnsmasq
 
 
 # Default 1-wire port;
@@ -25,7 +27,8 @@
 # Additional OpenHab based Scorpio Climate systems:
 #    pin 11, gpio 17
 #    pin 13, gpio 27 (OpenHab systems)
-# TODO: reboot required after changing this.
+# Latest update:
+#    switched to USB/Serial-port-based 1-wire controller
 - name: Ensure presence of 1-wire config-lines in /boot/config.txt
   lineinfile:
     path: /boot/config.txt
@@ -56,6 +59,15 @@
   become_method: sudo
 
 
+- name: Install required Openhab add-ons
+  command: openhab-cli console -p habopen -b
+  args:
+    stdin: |
+      feature:install openhab-binding-onewire
+      feature:install openhab-binding-ntp
+    stdin_add_newline: yes
+
+
 - name: Copy configuration data
   copy:
     src: "../../../../openhab{{ item.path }}/{{ item.filename }}"
@@ -63,6 +75,9 @@
     owner: root
     mode: u=rw,g=r,o=r
   with_items:
+    - { path: '/etc',                      filename: 'dhcpcd.conf'}
+    - { path: '/etc',                      filename: 'dnsmasq.conf'}
+    - { path: '/etc/hostapd',              filename: 'hostapd.conf'}
     - { path: '/etc/openhab2/items',       filename: 'default.items' }
     - { path: '/etc/openhab2/sitemaps',    filename: 'default.sitemap' }
     - { path: '/etc/openhab2/things',      filename: 'default.things' }
@@ -121,11 +136,16 @@
   when: support_progs.changed or boot_config.changed or owfs_config.changed
 
 
-- name: Restart openHab if needed
+- name: Restart openHab and any other services if needed
   service:
-    name: openhab2
+    name: '{{ item }}'
     enabled: true
     state: started
+    masked: no
   become: true
   become_user: root
   become_method: sudo
+  with_items:
+    - openhab2
+    - hostapd
+    - dnsmasq
