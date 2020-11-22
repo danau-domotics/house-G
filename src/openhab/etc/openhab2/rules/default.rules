@@ -39,8 +39,7 @@ then
 	FF_BathroomRad_Circulate.sendCommand(OFF)
 	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
 	
-	// Initialize settings
-	//Home_Mode.sendCommand("")
+	// Initialize settings (incl. default control mode)
+	if (Home_Mode.state == NULL)                     { Home_Mode.sendCommand("") }
 end
-
 
