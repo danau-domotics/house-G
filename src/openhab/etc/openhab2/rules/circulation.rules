@@ -46,6 +46,12 @@ then
 				closeCounter.sendCommand(dryingTime);
 			}
 		}
+		else if(Home_Mode.state.toString().equals("manual")){
+			// Don't do any active control if manual control is active.
+			if(closeCounter.state != dryingTime){
+				closeCounter.sendCommand(dryingTime);
+			}
+		}
 		else if (currentCount <= 1){
 			closeCounter.sendCommand(0);
 			circulateItem.sendCommand(OFF);
@@ -110,7 +116,17 @@ then
 			}
 		}
 		else { // If we don't want to circulate.
+			// Always reset the safety time when closing.
 			newCount = openingSafeTime;
+
+			// Copy state directly to valve in manual mode.
+			if (Home_Mode.state.toString().equals("manual")){
+				if (circulateItem.state == OFF){
+					if (valveItem.state != OFF){
+						valveItem.sendCommand(OFF);
+					}
+				}
+			}
 		}
 
 		// Update the counter if it changed.
