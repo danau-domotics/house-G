@@ -77,7 +77,6 @@
   with_items:
     - { path: '/etc',                      filename: 'dhcpcd.conf'}
     - { path: '/etc',                      filename: 'dnsmasq.conf'}
-    - { path: '/etc/hostapd',              filename: 'hostapd.conf'}
     - { path: '/etc/openhab2/items',       filename: 'default.items' }
     - { path: '/etc/openhab2/sitemaps',    filename: 'default.sitemap' }
     - { path: '/etc/openhab2/things',      filename: 'default.things' }
@@ -89,6 +88,19 @@
     - { path: '/etc/openhab2/rules',       filename: 'stabilitytracking.rules' }
     - { path: '/etc/openhab2/persistence', filename: 'default.persistence' }
     - { path: '/etc/openhab2/transform',   filename: 'weekday.map' }
+  become: true
+  become_user: root
+  become_method: sudo
+
+
+- name: Copy configuration data (template out)
+  template:
+    src:  "../../../../openhab{{ item.path }}/{{ item.filename }}.j2"
+    dest: '{{ item.path }}/{{ item.filename }}'
+    owner: root
+    mode: u=rw,g=r,o=r
+  with_items:
+    - { path: '/etc/hostapd',              filename: 'hostapd.conf'}
   become: true
   become_user: root
   become_method: sudo
