@@ -4,7 +4,7 @@
 
 - name: Install supporting programs
   apt:
-    update_cache: yes
+    update_cache: no
     name: "{{ packages }}"
     state: present
   register: support_progs
