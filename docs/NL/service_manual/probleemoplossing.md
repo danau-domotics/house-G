@@ -3,11 +3,11 @@
 # De website met het verwarmings afgifte-systeem werkt niet.
 Stappenplan:
 - Controleer of de bedienings-tablet/computer/laptop/telefoon werkt.
-- Controleer of de bedienings-tablet/computer/laptop/telefoon verbinding heeft met (TODO: naam Wifi-netwerk)
+- Controleer of de bedienings-tablet/computer/laptop/telefoon verbinding heeft met het Wifi-netwerk van het domotica systeem.
   - Indien deze verbinding niet werkt -> TODO: Verwijzen naar inschakelen centrale controller.
-- Indien mogelijk: Controlleer of de tablet/computer/laptop/telefoon een IP-adres heeft in de 192.168.50.0/24 range
+- Indien mogelijk: Controlleer of de tablet/computer/laptop/telefoon een IP-adres heeft in de 192.168.160.0/24 range
   - Indien deze verbinding niet werkt -> TODO: Verwijzen naar inschakelen centrale controller.
-- Open de website [openhab.home](http://openhab.home:8080)
+- Open de website [http://openhab.home:8080](http://openhab.home:8080) op de bedienings-tablet/computer/laptop/telefoon
   - Indien deze niet werkt: controleer of het systeem stroom heeft (zie inschakelen)
 
 
