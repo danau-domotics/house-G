@@ -26,7 +26,7 @@ Zie voor het inschakelen van deze mode de [Onderhouds Handleiding](../service_ma
 
 
 ## Verwarming en open ramen
-Zet de afgiftesysteem-functie op "VorstBeveiliging" bij langdurig ramen open zettenm, bijvoorbeeld bij een dag doorluchten.
+Zet de afgiftesysteem-functie op "VorstBeveiliging" bij langdurig ramen open zetten, bijvoorbeeld bij een dag doorluchten.
 De verwarming inschakelen terwijl er ramen open staan zorgt voor verspilling van energie en kan de bodem-bron van de warmtepomp onnodig uitputten.
 
 Zet ook geen ramen open midden in de winter als de vorstbeveiliging zou inschakelen.

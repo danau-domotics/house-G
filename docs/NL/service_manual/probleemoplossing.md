@@ -27,7 +27,7 @@ Het verwarmen van het douchewater is geen functie van het verwarmings-afgifte-sy
 # Een van de ruimtes in het huis te warm of te koud.
 Stappenplan:
 - Controleer of er in huis ramen open staan.
-  - Openstaande ramen op de bovenverdieping kunnen koeling geven voor de benedenverdieping.
+  - Openstaande ramen op de bovenverdieping kunnen koude geven voor de benedenverdieping.
 - Controleer (met de tablet) of het systeem op koelen of verwarmen staat.
 - Controleer (met de tablet) het setpoint voor de ruimte waar het te koud of te warm is.
 - Controleer de warmtepomp (is deze ingeschakeld, werkt deze).
@@ -38,5 +38,3 @@ Stappenplan:
     - I.v.m. mogelijke condensvorming wordt er meestal geen lagere temperatuur gebruikt dan 18 graden.
 - Controleer of de circulatiepomp draait om de ruimte te koelen of te verwarmen.
 
-
-TODO: tekst toevoegen over uitschakelen verwarming indien ramen open staan.
