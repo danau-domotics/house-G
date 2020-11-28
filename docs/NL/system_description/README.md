@@ -41,6 +41,10 @@ Gebruikte componenten in het systeem:
 |    ~10 | Kamer temperatuur meten    | DS18B20 1-wire temperature sensor |
 |    ~10 | Leiding temperatuur meten  | DS18B20 1-wire temperature sensor |
 
+#### USB-to-1wire Convertor (met behuizing)
+| Overzicht | Detail |
+| ---       |  ---   |
+| ![1W USB overzicht](../../images/2020-10-24_1w_usb_overview.jpg)| ![1W USB Detail](../../images/2020-10-24_1w_usb_detail.jpg) |
 
 ## Verwarmings netwerk.
 
