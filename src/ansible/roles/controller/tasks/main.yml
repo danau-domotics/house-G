@@ -19,6 +19,20 @@
     - dnsmasq
 
 
+- name: Remove no longer used programs
+  apt:
+    update_cache: no
+    name: "{{ packages }}"
+    state: absent
+  register: removed_progs
+  become: true
+  become_user: root
+  become_method: sudo
+  vars:
+    packages:
+    - isc-dhcp-server
+
+
 # Default 1-wire port;
 #    pin 7, gpio 4 and additional ports
 # Additional Original Scorpio Climate systems ports:
@@ -59,6 +73,18 @@
   become_method: sudo
 
 
+# Not needed for now? (TODO: check)
+- name: Ensure dhcp-daemon is started after network is configured
+  lineinfile:
+    path: /lib/systemd/system/dnsmasq.service
+    regexp: '^After=network.target'
+    line: After=network-online.target
+  become: true
+  become_user: root
+  become_method: sudo
+  when: false
+
+
 - name: Install required Openhab add-ons
   command: openhab-cli console -p habopen -b
   args:
@@ -77,6 +103,8 @@
   with_items:
     - { path: '/etc',                      filename: 'dhcpcd.conf'}
     - { path: '/etc',                      filename: 'dnsmasq.conf'}
+    - { path: '/etc/default',              filename: 'isc-dhcp-server' }
+    - { path: '/etc/dhcp',                 filename: 'dhcpd.conf' }
     - { path: '/etc/openhab2/items',       filename: 'default.items' }
     - { path: '/etc/openhab2/sitemaps',    filename: 'default.sitemap' }
     - { path: '/etc/openhab2/things',      filename: 'default.things' }
@@ -161,3 +189,4 @@
     - openhab2
     - hostapd
     - dnsmasq
+#    - isc-dhcp-server
