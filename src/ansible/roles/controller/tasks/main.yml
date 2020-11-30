@@ -133,6 +133,17 @@
   become_user: root
   become_method: sudo
 
+- name: Copy userdata
+  copy:
+    src: "../../../../../house-G-private/Documents/"
+    dest: "/var/lib/openhab2/Documenten/"
+    owner: openhab
+    group: openhab
+    mode: '0644'
+  become: true
+  become_user: root
+  become_method: sudo
+
 
 - name: Copy support programs
   copy:
