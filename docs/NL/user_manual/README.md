@@ -32,17 +32,32 @@ De verwarming inschakelen terwijl er ramen open staan zorgt voor verspilling van
 Zet ook geen ramen open midden in de winter als de vorstbeveiliging zou inschakelen.
 De warmtepomp en warmtebron zijn berekend op normaal warmtegebruik.
 
-Het is mogelijk het systeem uit te breiden met automatisch uitschakelen via [open raam en open deur detectie](mogelijke uitbreidingen.md) en/of met [in en uitschakelen per ruimte](mogelijke uitbreidingen.md).
+Het is mogelijk het systeem uit te breiden met automatisch uitschakelen via [open raam en open deur detectie](./mogelijke_uitbreidingen.md) en/of met [in en uitschakelen per ruimte](./mogelijke_uitbreidingen.md).
 
 
 
 ## Koeling vs zonne-warmte
 De volle zon zal het huis sterker verwarmen dan dat het koelings-systeem kan koelen. Indien het huis te sterk opwarmt in de zomer is het aan te raden om zonwering voor de ramen (of natuurlijke zonwering in de vorm van planten/bomen) aan te brengen.
-Het is mogelijk om sommige zonwering [te koppelen](mogelijke uitbreidingen.md) met het domotica-systeem.
+Het is mogelijk om sommige zonwering [te koppelen](./mogelijke_uitbreidingen.md) met het domotica-systeem.
 
 
 
 ## Koeling en radiatoren
 Nieuwe verwarmings-onderdelen (zoals vloer-verwarmings verdelers) zijn uitgevoerd met materialen die ook goed tegen koelen kunnen, de radiatoren in het huis zijn echter ouder dan de koelfunctie van het verwarmings-systeem.
 Het is mogelijk om radiatoren in te schakelen terwijl de warmtepomp aan het koelen is, maar in verband met het risico van corrosie (vanwege condens/dauw) wordt het niet aangeraden om radiatoren in te schakelen tijdens koeling.
-Het is mogelijk om de software aan te passen die [inschakelen van radiatoren bij een te lage brontemperatuur blokkeert](mogelijke uitbreidingen.md).
+Het is mogelijk om de software aan te passen die [inschakelen van radiatoren bij een te lage brontemperatuur blokkeert](./mogelijke_uitbreidingen.md).
+
+
+
+# Gebruikershandleiding bestand-service
+
+OP het systeem staat een gedeelde map met een aantal (voor het huis) relevante documenten. De procedure om deze bestanden te open is:
+- Maak vanaf een laptop (of tablet) verbinding met het WiFi netwerk van het systeem.
+- Open de gedeelte mappen.
+  - Op Windows gaat dit via Explorer op pad \\openhab.home\ of op pad \\192.168.160.10\
+  - Op Apple en Linux gaat dit via pad smb://openhab.home of op pad smb://192.168.160.10/
+- Kijk naar een map die begint met "user" en open deze.
+- Gebruik de gebruikersnaam en wachtwoord voor het openen van deze share.
+- Kopieer de map documenten naar de eigen laptop en naar een veilige backup.
+
+Let op: Dit is geen algemene file-sharing service. Alle bestanden op deze share kunnen bij een toekomstige update van het systeem verdwijnen. Kopieer de bestanden naar een eigen laptop en/of naar een veilige backup om ze veilig te stellen.
