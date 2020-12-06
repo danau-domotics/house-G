@@ -103,6 +103,7 @@
   with_items:
     - { path: '/etc',                      filename: 'dhcpcd.conf'}
     - { path: '/etc',                      filename: 'dnsmasq.conf'}
+    - { path: '/etc',                      filename: 'hosts' }
     - { path: '/etc/default',              filename: 'isc-dhcp-server' }
     - { path: '/etc/dhcp',                 filename: 'dhcpd.conf' }
     - { path: '/etc/openhab2/items',       filename: 'default.items' }
@@ -133,6 +134,8 @@
   become_user: root
   become_method: sudo
 
+
+# TODO: check if this can be sped-up using synchronize (rsync based)
 - name: Copy userdata
   copy:
     src: "../../../../../house-G-private/Documents/"
