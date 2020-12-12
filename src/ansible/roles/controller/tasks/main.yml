@@ -84,13 +84,21 @@
   become_method: sudo
   when: false
 
-
+# TODO: add uninstalls
+#      feature:uninstall openhab-ui-habot
+#      feature:uninstall openhab-ui-habpanel
+#      feature:uninstall openhab-ui-homebuilder
+#      feature:uninstall openhab-ui-paper
+#      feature:uninstall openhab-ui-dashboard
+#      feature:uninstall openhab-io-webaudio
+#      feature:uninstall ssh
 - name: Install required Openhab add-ons
   command: openhab-cli console -p habopen -b
   args:
     stdin: |
       feature:install openhab-binding-onewire
       feature:install openhab-binding-ntp
+      feature:install openhab-ui-basic
     stdin_add_newline: yes
 
 
