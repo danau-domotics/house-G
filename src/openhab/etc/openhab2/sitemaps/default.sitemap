@@ -1,22 +1,19 @@
 sitemap default label="Huis" {
-    Frame {
+	Frame label="Systeem en Bron" {
         Group item=Recent_Errors
         Group item=Total_Errors
         Group item=AllTemps
-    }
-
-Frame label="Datum en Tijd" {
-		Text item=Time	
-		Text item=Date	
-	}
-
-	Frame label="Bron" {
+		Text item=Home_SystemStatus
 		Default item=Home_SupplyTemp
 		Selection item=Home_Mode mappings=[""="Vorstbeveiliging", "auto"="Automatisch (Verwarmen en Koelen)", "heat"="Verwarmen", "cool"="Koelen", "manual"="Handbediening"]
 		Default item=Home_CircuitsOpen
 		Default item=Valve_Counters
 		Default item=Close_Counters
 		Switch item=Home_Pump               visibility=[Home_Mode=="manual"]
+	}
+	Frame label="Datum en Tijd" {
+		Text item=Time
+		Text item=Date
 	}
 	Frame label="Woonkamer" {
 		Setpoint item=GF_LivingMid_SetpointHeat visibility=[Home_Mode!="manual"] minValue=8 maxValue=30 step=0.1
