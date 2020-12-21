@@ -11,31 +11,47 @@ then
 		Zmeasurements_measureOfflineTime.sendCommand(OFF)
 		return;
 	}
-	else if(Zmeasurements_measureOfflineTime.state == OFF){
-		return;
-	}
 
 	val things = ScriptServiceUtil.getInstance.thingRegistry.getAll()
 	things.forEach[theThing |
 		val trackerNameSplit = theThing.getUID().toString().split(":")
 		if(trackerNameSplit.length == 4){		
-			val trackerName = trackerNameSplit.get(3) + "_offlineTime";
-			val trackerItem = ScriptServiceUtil.getItemRegistry.getItem(trackerName);
+			// Tracker for recent downtime
+			val recentTrackerName = trackerNameSplit.get(3) + "_recentOffline";
+			val recentTrackerItem = ScriptServiceUtil.getItemRegistry.getItem(recentTrackerName);
 
-			if(trackerItem.state == NULL){
-				trackerItem.sendCommand(0);
+			if(recentTrackerItem.state == NULL){
+				recentTrackerItem.sendCommand(0);
 			}
 			else if(theThing.getStatus().toString().equals("OFFLINE")){
-				trackerItem.sendCommand((trackerItem.state as Number) + 1);
+				recentTrackerItem.sendCommand((recentTrackerItem.state as Number) + 1);
+			}
+			else if(recentTrackerItem.state > 0){
+				recentTrackerItem.sendCommand(0);
+			}
+
+			if(Zmeasurements_measureOfflineTime.state != OFF){
+				// Tracker for total downtime
+				val trackerName = trackerNameSplit.get(3) + "_totalOffline";
+				val trackerItem = ScriptServiceUtil.getItemRegistry.getItem(trackerName);
+
+				if(trackerItem.state == NULL){
+					trackerItem.sendCommand(0);
+				}
+				else if(theThing.getStatus().toString().equals("OFFLINE")){
+					trackerItem.sendCommand((trackerItem.state as Number) + 1);
+				}
 			}
 		}
 	]
-	
+
 	// Keep track of the total amount of measurements
-	if(Zmeasurements_offLineTime.state == NULL){
-		Zmeasurements_offLineTime.sendCommand(0);
-	}
-	else {
-		Zmeasurements_offLineTime.sendCommand((Zmeasurements_offLineTime.state as Number) + 1);
+	if(Zmeasurements_measureOfflineTime.state != OFF){
+		if(Zmeasurements_totalOffline.state == NULL){
+			Zmeasurements_totalOffline.sendCommand(0);
+		}
+		else {
+			Zmeasurements_totalOffline.sendCommand((Zmeasurements_totalOffline.state as Number) + 1);
+		}
 	}
 end

@@ -1,6 +1,7 @@
 sitemap default label="Huis" {
     Frame {
-        Group item=Error_Time_Counters
+        Group item=Recent_Errors
+        Group item=Total_Errors
         Group item=AllTemps
     }
 
