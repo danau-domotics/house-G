@@ -86,14 +86,7 @@
   become_method: sudo
   when: false
 
-# TODO: add uninstalls
-#      feature:uninstall openhab-ui-habot
-#      feature:uninstall openhab-ui-habpanel
-#      feature:uninstall openhab-ui-homebuilder
-#      feature:uninstall openhab-ui-paper
-#      feature:uninstall openhab-ui-dashboard
-#      feature:uninstall openhab-io-webaudio
-#      feature:uninstall ssh
+
 - name: Install required Openhab add-ons
   command: openhab-cli console -p habopen -b
   args:
@@ -102,6 +95,23 @@
       feature:install openhab-binding-ntp
       feature:install openhab-ui-basic
     stdin_add_newline: yes
+
+
+# TODO: some error-prevention (check if installed before trying to uninstall)
+- name: OpenHab cleanup (optional)
+  command: openhab-cli console -p habopen -b
+  args:
+    stdin: '{{ item.action }} {{ item.name }}'
+    stdin_add_newline: yes
+  with_items:
+    - { action: 'feature:uninstall', name: 'openhab-ui-habot' }
+    - { action: 'feature:uninstall', name: 'openhab-ui-habpanel' }
+    - { action: 'feature:uninstall', name: 'openhab-ui-homebuilder' }
+    - { action: 'feature:uninstall', name: 'openhab-ui-paper' }
+    - { action: 'feature:uninstall', name: 'openhab-ui-dashboard' }
+    - { action: 'feature:uninstall', name: 'openhab-io-webaudio' }
+    - { action: 'feature:uninstall', name: 'ssh' }
+  ignore_errors: yes
 
 
 - name: Copy configuration data
@@ -156,6 +166,7 @@
   become: true
   become_user: root
   become_method: sudo
+  when: false
 
 
 - name: Copy support programs
