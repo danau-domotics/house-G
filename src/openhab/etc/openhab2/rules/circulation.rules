@@ -154,7 +154,7 @@ then
 		return;
 
 	// Activate pump if desired and safe to do so.
-	if(Circuits_Primary.state == ON && safelyOpened.size > 0 && Home_SystemStatus.state == "OK")
+	if(Circuits_Primary.state == ON && safelyOpened.size > 0 && Home_SystemStatus.state != "!! Storing !!")
 	{
 		// Circulation is desired
 		if(Home_Pump.state == OFF)

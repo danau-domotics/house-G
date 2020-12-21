@@ -3,24 +3,39 @@ import org.openhab.core.thing.ThingRegistry
 
 
 // Checked when recent errors changed, and once every half a minute
-rule "Health responses"
+rule "Health and status responses"
 when
+	Item Circuits_Primary changed or
+	Item Circuits_Secondary changed or
+	Item Home_Pump changed or
 	Item Recent_Errors changed or
 	Time cron "0/30 * * ? * * *"
 then
 	if(Home_SystemStatus.state == NULL){
-		Home_SystemStatus.sendCommand("OK");
-	}
-	else if(Recent_Errors.state < 1){
-		if(Home_SystemStatus.state != "OK"){
-			Home_SystemStatus.sendCommand("OK");
-		}
+		Home_SystemStatus.sendCommand("Systeem Starten");
 	}
 	// If we have errors for 5 minutes or more, then take action.
 	else if(Recent_Errors.state > 30)
 	{
 		if(Home_SystemStatus.state != "!! Storing !!"){
 			Home_SystemStatus.sendCommand("!! Storing !!");
+		}
+	}
+	else if(Recent_Errors.state < 1){
+		if(Home_Pump.state == ON)
+		{
+			if(Home_SystemStatus.state != "Circulatie Actief"){
+				Home_SystemStatus.sendCommand("Circulatie Actief");
+			}
+		}
+		else if(Circuits_Primary == ON || Circuits_Secondary == ON)
+		{
+			if(Home_SystemStatus.state != "Start Circulatie"){
+				Home_SystemStatus.sendCommand("Start Circulatie")
+			}
+		}
+		else if(Home_SystemStatus.state != "Geen Circulatie"){
+			Home_SystemStatus.sendCommand("Geen Circulatie")
 		}
 	}
 end
