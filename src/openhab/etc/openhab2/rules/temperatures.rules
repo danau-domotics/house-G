@@ -3,41 +3,23 @@ import org.eclipse.smarthome.model.script.ScriptServiceUtil
 // Deltas for hysteresis, to avoid pendelling of pump
 var Number   hysterDelta = 0.2
 
+// Delta for automatic control decissions
+// No decissions are made if the delta is smaller than the numbers here.
+var Number   autoModeDelta = 2
+
 // Temperature at which to activate protection against freezing
 var Number   freezeProtection = 8
 
 
-
-rule "Switch to heating mode"
+rule "Switched to non-manual system mode"
 when
-	Item Home_Mode changed to heat
-then
-	// Initialize manual groups to off
-	GF_GarageRad_Circulate.sendCommand(OFF)
-	GF_HallwayRad_Circulate.sendCommand(OFF)
-	FF_BathroomRad_Circulate.sendCommand(OFF)
-	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
-end
-
-
-
-rule "Switch to cooling mode"
-when
-	Item Home_Mode changed to cool
-then
-	// Initialize manual groups (based on no cooling in optional areas)
-	GF_GarageRad_Circulate.sendCommand(OFF)
-	GF_HallwayRad_Circulate.sendCommand(OFF)
-	FF_BathroomRad_Circulate.sendCommand(OFF)
-	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
-end
-
-
-rule "Switch to anti-freeze mode"
-when
+	Item Home_Mode changed to heat or
+	Item Home_Mode changed to cool or
+	Item Home_Mode changed to auto or
 	Item Home_Mode changed to ""
 then
-	// Initialize manual groups (based on no activity in optional areas)
+	// Initialize manual groups to off
+	// They can be manually re-activated when required.
 	GF_GarageRad_Circulate.sendCommand(OFF)
 	GF_HallwayRad_Circulate.sendCommand(OFF)
 	FF_BathroomRad_Circulate.sendCommand(OFF)
@@ -138,11 +120,39 @@ then
 	}
 	else if(Home_Mode.state.toString().equals("auto"))
 	{
-		// TODO: add source temperature read here...
-		if(tempRead - hysterDelta > setpointCoolItem.state)
-			doCirculate = ON;
-		if(tempRead + hysterDelta < setpointHeatItem.state)
+		// Are we above the minimum heating temperature?
+		if(tempRead - hysterDelta > setpointHeatItem.state){
 			doCirculate = OFF;
+		}
+		// Are we below the minimum cooling temperature?
+		else if(tempRead + hysterDelta < setpointCoolItem.state){
+			doCirculate = OFF;
+		}
+		else {
+			// Read the source temperature for checking what we can do.
+			var Number supplyTemp = Home_SupplyTemp.state;
+
+			// Do we want heating?
+			if(tempRead + hysterDelta < setpointHeatItem.state){
+				// Can we do heating?
+				if(supplyTemp - autoModeDelta > tempRead){
+					doCirculate = ON;
+				}
+				else {
+					doCirculate = OFF;
+				}
+			}
+			// Do we want cooling?
+			else if(tempRead - hysterDelta > setpointCoolItem.state){
+				// Can we do cooling?
+				if(supplyTemp + autoModeDelta < tempRead){
+					doCirculate = ON;
+				}
+				else {
+					doCirculate = OFF;
+				}
+			}
+		}
 	}
 	else if(tempRead - hysterDelta > freezeProtection)
 	{
@@ -151,7 +161,7 @@ then
 	}
 	
 	if(didCirculate != doCirculate){
-		logError("temperatures.rules", "Setting {} to {}", circulateItem.name, doCirculate);
+		logInfo("temperatures.rules", "Setting {} to {}", circulateItem.name, doCirculate);
 		sendCommand(circulateItem.name, doCirculate.toString)
 	}
 end
