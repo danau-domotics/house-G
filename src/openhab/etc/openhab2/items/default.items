@@ -3,8 +3,8 @@ Group    Home                           "Huis"                <house>           
 Group    GF                             "Begane grond"        <groundfloor>      (Home)                             ["GroundFloor"]
 Group    FF                             "Eerste verdieping"   <firstfloor>       (Home)                             ["FirstFloor"]
 
-Group:Number:MAX    Recent_Errors       "Recente storingen [%.0f]"    <status>
-Group    Total_Errors                   "Totaal storingen"            <status>
+Group:Number:MAX    Recent_Errors       "Recente foutmeldingen [%.0f]"    <status>
+Group    Total_Errors                   "Totaal foutmeldingen"            <status>
 
 Group    Valves_Primary                 "Primare verwarming kleppen met pomp aansturing"  (Home)
 Group:Switch:OR(ON,OFF) Circuits_Primary "Primare verwarming circuits met pomp aansturing" (Home)
@@ -22,6 +22,12 @@ Group    SetpointsHeat                  "Setpoints Verwarmen" (Home)
 Group    SetpointsCool                  "Setpoints Koelen" (Home)
 
 Number   Home_SupplyTemp                "Aanvoer Temperatuur [%.1f °C]"                <flowpipe>         (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:supply_temp:temperature"}
+// ""=Vorstbeveiliging, "auto"=Verwarmen en Koelen, "heat"=Verwarmen, "cool"=Koelen, "manual"=Handbediening
+String   Home_Mode                      "Systeem Mode"                          <heating>
+Switch   Home_Pump                      "Pomp"                                  <pump>             {channel="onewire:basic:localbridge:gf_switches:digital0"}
+Number   Home_CircuitsOpen              "Afgiftecircuits volledig open [%.0f]"  <flow>
+// OK, or anything else for errors
+String   Home_SystemStatus              "Systeem Status [%s]"         <status>
 
 Number   GF_LivingMid_RoomTemp          "Woonkamer [%.1f °C]"                          <temperature>      (AllTemps, Temperature_Primary) ["Temperature"]   {channel="onewire:basic:localbridge:living_roomtemp:temperature"}
 Number   GF_LivingMid_SetpointHeat      "Woonkamer Setpoint Verwarmen [%.1f °C]"       <sofa>             (Setpoints, SetpointsHeat)      ["Temperature"]
@@ -83,10 +89,7 @@ Number   FF_Corridor_Return             "Overloop (Retour) [%.1f °C]"          
 Switch   FF_LaundryRoomRad_Circulate    "Waskamer Radiator"                            <radiator>         (Circuits_Secundary)
 Number   FF_LaundryRoomRad_Return       "Waskamer Radiator (Retour) [%.1f °C]"         <returnpipe>       (AllTemps, ReturnTemps)         ["Temperature"]   {channel="onewire:basic:localbridge:laundryroom_return:temperature"}
 
-// ""=Vorstbeveiliging, "auto"=Verwarmen en Koelen, "heat"=Verwarmen, "cool"=Koelen, "manual"=Handbediening
-String   Home_Mode                      "Systeem Mode"                          <heating>
-Switch   Home_Pump                      "Pomp"                                  <pump>             {channel="onewire:basic:localbridge:gf_switches:digital0"}
-Number   Home_CircuitsOpen              "Afgiftecircuits volledig open [%.0f]"  <flow>
+
 
 Switch   GF_Office_Valve                "Werkkamer Vloer Klep"               <pressure>         (Valves_Primary)      {channel="onewire:basic:localbridge:gf_switches:digital1"}
 Switch   GF_LivingAft_Valve             "Woonkamer Vloer (Voor) Klep"        <pressure>         (Valves_Following)    {channel="onewire:basic:localbridge:gf_switches:digital3"}

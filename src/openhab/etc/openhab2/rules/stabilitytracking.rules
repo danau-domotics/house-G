@@ -2,6 +2,31 @@ import org.eclipse.smarthome.model.script.ScriptServiceUtil
 import org.openhab.core.thing.ThingRegistry
 
 
+// Checked when recent errors changed, and once every half a minute
+rule "Health responses"
+when
+	Item Recent_Errors changed or
+	Time cron "0/30 * * ? * * *"
+then
+	if(Home_SystemStatus.state == NULL){
+		Home_SystemStatus.sendCommand("OK");
+	}
+	else if(Recent_Errors.state < 1){
+		if(Home_SystemStatus.state != "OK"){
+			Home_SystemStatus.sendCommand("OK");
+		}
+	}
+	// If we have errors for 5 minutes or more, then take action.
+	else if(Recent_Errors.state > 30)
+	{
+		if(Home_SystemStatus.state != "!! Storing !!"){
+			Home_SystemStatus.sendCommand("!! Storing !!");
+		}
+	}
+end
+
+
+
 rule "OneWire Offline Tracking"
 when
 	Time cron "0/10 * * ? * * *"
