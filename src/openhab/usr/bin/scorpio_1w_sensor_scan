@@ -1,0 +1,5 @@
+#!/bin/bash
+
+HERE=$(cd `dirname $0` && pwd)
+
+"${HERE}/scorpio_1w_scan" | grep "^28\\."

@@ -14,9 +14,11 @@
   vars:
     packages:
     - owhttpd
+    - ow-shell
     - lsof
     - hostapd
     - dnsmasq
+    - dnsutils
 
 
 - name: Remove no longer used programs
@@ -161,10 +163,12 @@
     src: "../../../../openhab{{ item.path }}/{{ item.filename }}"
     dest: '{{ item.path }}'
     owner: root
-    mode: u=rwx,g=rx,o=rx
+    mode: '{{ item.mode }}'
   with_items:
-    - { path: '/usr/bin',    filename: 'scorpio_owserver_to_1wfs' }
-    - { path: '/usr/bin',    filename: 'scorpio_1w_scan' }
+    - { path: '/usr/bin',  mode: 'u=rwx,g=rx,o=rx',  filename: 'scorpio_owserver_to_1wfs' }
+    - { path: '/usr/bin',  mode: 'u=rwx,g=rx,o=rx',  filename: 'scorpio_1w_scan' }
+    - { path: '/usr/bin',  mode: 'u=rwx,g=rx,o=rx',  filename: 'scorpio_1w_sensor_scan' }
+    - { path: '/usr/bin',  mode: 'u=srwx,g=rx,o=rx',  filename: 'scorpio_1w_replace' }
   become: true
   become_user: root
   become_method: sudo
