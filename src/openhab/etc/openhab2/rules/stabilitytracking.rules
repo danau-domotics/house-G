@@ -24,7 +24,9 @@ then
 				recentTrackerItem.sendCommand(0);
 			}
 			else if(theThing.getStatus().toString().equals("OFFLINE")){
-				recentTrackerItem.sendCommand((recentTrackerItem.state as Number) + 1);
+				if(recentTrackerItem.state < 360){
+					recentTrackerItem.sendCommand((recentTrackerItem.state as Number) + 1);
+				}
 			}
 			else if(recentTrackerItem.state > 0){
 				recentTrackerItem.sendCommand(0);
