@@ -6,7 +6,7 @@ import org.openhab.core.thing.ThingRegistry
 rule "Health and status responses"
 when
 	Item Circuits_Primary changed or
-	Item Circuits_Secondary changed or
+	Item Circuits_Secundary changed or
 	Item Home_Pump changed or
 	Item Recent_Errors changed or
 	Time cron "0/30 * * ? * * *"
@@ -21,6 +21,13 @@ then
 			Home_SystemStatus.sendCommand("!! Storing !!");
 		}
 	}
+	// Give an early warning that something is about to go wrong.
+	else if(Recent_Errors.state > 3)
+	{
+		if(Home_SystemStatus.state != "Storingsdetectie Actief"){
+			Home_SystemStatus.sendCommand("Storingsdetectie Actief");
+		}
+	}
 	else if(Recent_Errors.state < 1){
 		if(Home_Pump.state == ON)
 		{
@@ -28,7 +35,7 @@ then
 				Home_SystemStatus.sendCommand("Circulatie Actief");
 			}
 		}
-		else if(Circuits_Primary == ON || Circuits_Secondary == ON)
+		else if(Circuits_Primary == ON || Circuits_Secundary == ON)
 		{
 			if(Home_SystemStatus.state != "Start Circulatie"){
 				Home_SystemStatus.sendCommand("Start Circulatie")
