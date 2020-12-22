@@ -1,0 +1,43 @@
+#!/bin/bash
+
+echo " ***************************************** "
+echo " * Scorpio Climate, preparing for update * "
+echo " ***************************************** "
+if [[ $EUID -ne 0 ]]; then
+	echo "Error: Not running with system management permissions!"
+	exit 1
+fi
+echo ""
+# - Go to home-directory
+cd
+echo "Running in $(pwd)"
+
+# - Ensure that the existing updater directory is empty and ready for use.
+rm -rf .scorpio_update
+mkdir -p .scorpio_update
+cd .scorpio_update
+
+echo ""
+echo " *************************************** "
+echo " * Scorpio Climate, downloading update * "
+echo " *************************************** "
+echo " Running git clone to get full updated archive. "
+/usr/bin/git clone https://github.com/danau-domotics/house-G.git
+if [ $? -ne 0 ]
+then
+	echo "Warning: Cloning failed!"
+fi
+if [ ! -d house-G/src ]
+then
+	echo "Error: cloned update-directory does not exist!"
+	exit 1
+fi
+cd house-G/src
+
+echo ""
+echo " *********************************** "
+echo " * Scorpio Climate, running update * "
+echo " *********************************** "
+
+chmod u+x run_update
+./run_update

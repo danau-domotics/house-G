@@ -13,12 +13,24 @@
   become_method: sudo
   vars:
     packages:
+    - ansible
     - owhttpd
     - ow-shell
     - lsof
     - hostapd
     - dnsmasq
     - dnsutils
+    - lighttpd
+    - php
+    - php-cgi
+
+
+- name: Enable PHP for lighttpd
+  command: lighttpd-enable-mod fastcgi fastcgi-php
+  become: true
+  become_user: root
+  become_method: sudo
+  ignore_errors: yes
 
 
 - name: Remove no longer used programs
@@ -95,6 +107,7 @@
       feature:install openhab-binding-ntp
       feature:install openhab-ui-basic
     stdin_add_newline: yes
+  when: false
 
 
 # TODO: some error-prevention (check if installed before trying to uninstall)
@@ -110,8 +123,8 @@
     - { action: 'feature:uninstall', name: 'openhab-ui-paper' }
     - { action: 'feature:uninstall', name: 'openhab-ui-dashboard' }
     - { action: 'feature:uninstall', name: 'openhab-io-webaudio' }
-    - { action: 'feature:uninstall', name: 'ssh' }
   ignore_errors: yes
+  when: false
 
 
 - name: Copy configuration data
@@ -137,6 +150,7 @@
     - { path: '/etc/openhab2/rules',       filename: 'stabilitytracking.rules' }
     - { path: '/etc/openhab2/persistence', filename: 'default.persistence' }
     - { path: '/etc/openhab2/transform',   filename: 'weekday.map' }
+    - { path: '/etc/sudoers.d',            filename: 'scorpio_admintools' }
   become: true
   become_user: root
   become_method: sudo
@@ -173,13 +187,17 @@
   copy:
     src: "../../../../openhab{{ item.path }}/{{ item.filename }}"
     dest: '{{ item.path }}'
-    owner: root
+    owner: '{{ item.owner }}'
     mode: '{{ item.mode }}'
   with_items:
-    - { path: '/usr/bin',  mode: 'u=rwx,g=rx,o=rx',  filename: 'scorpio_owserver_to_1wfs' }
-    - { path: '/usr/bin',  mode: 'u=rwx,g=rx,o=rx',  filename: 'scorpio_1w_scan' }
-    - { path: '/usr/bin',  mode: 'u=rwx,g=rx,o=rx',  filename: 'scorpio_1w_sensor_scan' }
-    - { path: '/usr/bin',  mode: 'u=srwx,g=rx,o=rx',  filename: 'scorpio_1w_replace' }
+    - { path: '/usr/bin',      mode: 'u=rwx,g=rx,o=rx', owner: root,     filename: 'scorpio_owserver_to_1wfs' }
+    - { path: '/usr/bin',      mode: 'u=rwx,g=rx,o=rx', owner: root,     filename: 'scorpio_1w_scan' }
+    - { path: '/usr/bin',      mode: 'u=rwx,g=rx,o=rx', owner: root,     filename: 'scorpio_1w_sensor_scan' }
+    - { path: '/usr/bin',      mode: 'u=rwx,g=rx,o=rx', owner: root,     filename: 'scorpio_1w_replace' }
+    - { path: '/usr/bin',      mode: 'u=rwx,g=rx,o=rx', owner: root,     filename: 'scorpio_run_update' }
+    - { path: '/var/www/html', mode: 'u=rwx,g=rx,o=rx', owner: www-data, filename: 'index.html' }
+    - { path: '/var/www/html', mode: 'u=rwx,g=rx,o=rx', owner: www-data, filename: 'run_update.php' }
+    - { path: '/var/www/html', mode: 'u=rwx,g=rx,o=rx', owner: www-data, filename: 'replace_sensor.php' }
   become: true
   become_user: root
   become_method: sudo

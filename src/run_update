@@ -1,0 +1,12 @@
+#!/bin/bash
+echo " ****************************** "
+echo " * Updater script for house-G * "
+echo " ****************************** "
+
+if [[ $EUID -ne 0 ]]; then
+	echo "Error: Not running with system management permissions!"
+	exit 1
+fi
+
+echo "No update available!"
+exit 0
