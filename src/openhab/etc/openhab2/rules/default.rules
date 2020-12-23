@@ -39,6 +39,6 @@ then
 	FF_LaundryRoomRad_Circulate.sendCommand(OFF)
 	
 	// Initialize settings (incl. default control mode)
-	if (Home_Mode.state == NULL)                     { Home_Mode.sendCommand("") }
+	if (Home_Mode.state == NULL)                     { Home_Mode.sendCommand("heat") }
 	if (Home_SystemStatus.state == NULL)             { Home_SystemStatus.sendCommand("OK") }
 end
