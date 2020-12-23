@@ -1,26 +1,22 @@
-Poort Nummer,"Verbinding
-Vanaf Paneel",Lokatie Patch Punt,"Verbinding
-Vanaf Patch Punt
-(Naar Sensor/Computer/
-TV/Ander Paneel)"
+Poort Nummer,Lokatie Patch Punt,In Gebruik Voor,Laatste update
 G-01,,,
 G-02,,,
 G-03,,,
 G-04,,,
 G-05,,,
-G-06,Naar meterkast via G-08,"woonkamer midden, binnenmuur vlakbij doorgang keuken (WE)",Temperatuur-sensor woonkamer
-G-07,"1-wire kabelboom beneden (sensoren retourleidingen, aanvoerleiding en schakelkastje)",(verbinding meterkast - garage),Komt uit op M21
-G-08,Naar G-06,(verbinding meterkast - garage),Komt uit op M22
-G-09,(ongebruikt),(verbinding meterkast - garage),Komt uit op M23
-G-10,(ongebruikt),(verbinding meterkast - garage),Komt uit op M24
-G-11,(ongebruikt),"woonkamer, schuifpui muur rechts naast schuifpui",(ongebruikt)
-G-12,(ongebruikt),"woonkamer, zithoek rechts van raam dat open kan",(ongebruikt)
+G-06,"woonkamer midden, binnenmuur vlakbij doorgang keuken (WE)",1-wire temperatuursensor woonkamer via garage G-08 naar meterkast,2020-12
+G-07,"(verbinding meterkast - garage, M16)","1-wire kabelboom beneden (sensoren retourleidingen, aanvoerleiding en schakelkastje)",2020-12
+G-08,"(verbinding meterkast - garage, M18)",Naar G-06,2020-12
+G-09,"(verbinding meterkast - garage, M20)",(ongebruikt),2020-12
+G-10,"(verbinding meterkast - garage, M22)",(ongebruikt),2020-12
+G-11,"woonkamer, schuifpui muur rechts naast schuifpui",(ongebruikt),2020-12
+G-12,"woonkamer, zithoek rechts van raam dat open kan",(ongebruikt),2020-12
 M-01,,,
-M-02,(ongebruikt),Slaapkamer rechtsvoor (SR),(ongebruikt)
+M-02,Slaapkamer rechtsvoor (SR),(ongebruikt),
 M-03,,,
-M-04,Via slaapkamer-linksvoor (SL) naar W-12,Slaapkamer linksvooor (SL),(ongebruikt)
+M-04,Slaapkamer linksvooor (SL),Via slaapkamer-linksvoor (SL) naar W-12,2020-12
 M-05,,,
-M-06,Router (t.b.v. internet voor TV),"SA, Slaapkamer achter. Naast de deur, aansluiting t.b.v. TV.",
+M-06,"SA, Slaapkamer achter. Naast de deur, aansluiting t.b.v. TV.",Router (t.b.v. internet voor TV),
 M-07,,,
 M-08,,,
 M-09,,,
@@ -30,23 +26,23 @@ M-12,,,
 M-13,,,
 M-14,,,
 M-15,,,
-M-16,"slaapkamer, rechtsvoor, klein normaal raam",,
-M-17,"slaapkamer, linksvoor, klein (Frans) balkon",,
-M-18,Router (t.b.v. internet voor TV),"Woonkamer zithoek, werkkamermuur",
-M-19,Router (t.b.v. internet voor TV),"SA, Slaapkamer achter. Naast de deur, aansluiting t.b.v. TV.",
-M-20,M1w-07,Werkkamer (SK),
-M-21,M1w-04,(verbinding meterkast - garage),Komt uit op G07
-M-22,M1w-06,(verbinding meterkast - garage),Komt uit op G08
-M-23,(ongebruikt),(verbinding meterkast - garage),Komt uit op G09
-M-24,(ongebruikt),(verbinding meterkast - garage),Komt uit op G10
-M1w-01,domotica computer,"(1-wire bus 0, 1 en 2 intern in M1w)",
-M1w-02,M-04,(UTP en 1-wire bus 2 intern in M1w),
-M1w-03,Router (t.b.v. internet boven/zonnepanelen),(UTP intern in M1w),
-M1w-04,M-16,(1-wire bus 0 intern in M1w),
-M1w-05,M-23,(1-wire bus 0 intern in M1w),
-M1w-06,M-18,(1-wire bus 1 intern in M1w),
-M1w-07,,(1-wire bus 1 intern in M1w),
-M1w-08,,(1-wire bus 1 intern in M1w),
+M-16,"(verbinding meterkast - garage, G07)",1-wire naar garage,2020-12
+M-17,,,
+M-18,"(verbinding meterkast - garage, G08)",1-wire naar garage,2020-12
+M-19,,,
+M-20,"(verbinding meterkast - garage, G09)",(ongebruikt),2020-12
+M-21,,,
+M-22,"(verbinding meterkast - garage, G10)",(ongebruikt),2020-12
+M-23,werkkamer (links van het grote raam),One-wire (t.b.v. sensor werkkamer),
+M-24,,,
+M1w-01,"(1-wire bus 0, 1 en 2 intern in M1w)",domotica computer,
+M1w-02,(ethernet en 1-wire bus 2 intern in M1w),M-04,
+M1w-03,(ethernet intern in M1w),Router (t.b.v. internet boven/zonnepanelen),
+M1w-04,(1-wire bus 0 intern in M1w),,
+M1w-05,(1-wire bus 0 intern in M1w),,
+M1w-06,(1-wire bus 1 intern in M1w),,
+M1w-07,(1-wire bus 1 intern in M1w),,
+M1w-08,(1-wire bus 1 intern in M1w),,
 W-01,,,
 W-02,,,
 W-03,,,
@@ -57,13 +53,13 @@ W-07,,,
 W-08,,,
 W-09,,,
 W-10,,,
-W-11,W1w-06,Slaapkamer Rechtsvoor (W-SR),
-W-12,W1w-01,Slaapkamer Linksvoor (SL),Via SL/slaapkamer-linksvoor naar M-04
-W1w-01,Naar W-12,(UTP en 1-wire netwerk intern in W1w),
-W1w-02,100Mbit t.b.v. omvormer zonnepanelen,(UTP intern in W1w),
-W1w-03,Naar W-11,(1-wire netwerk intern in W1w),
-W1w-04,UTP W-HO/Overloop boven,(1-wire netwerk intern in W1w),
-W1w-05,UTP W-SA/Slaapkamer achter,(1-wire netwerk intern in W1w),
-W1w-06,UTP W-SR/Slaapkamer rechts-vooor,(1-wire netwerk intern in W1w),
-W1w-07,1-wire kabelboom boven (sensoren retourleidingen en schakelkastje),(1-wire netwerk intern in W1w),
-W1w-08,Badkamer Sensor (direct op UTP),(1-wire netwerk intern in W1w),
+W-11,Slaapkamer Rechtsvoor (W-SR),W1w-06,
+W-12,Slaapkamer Linksvoor (SL),1-wire en ethernet via SL/slaapkamer-linksvoor naar meterkast (W1w-01 in Waskamer),
+W1w-01,(UTP en 1-wire netwerk intern in W1w),Naar W-12,
+W1w-02,(UTP intern in W1w),100Mbit t.b.v. omvormer zonnepanelen,
+W1w-03,(1-wire netwerk intern in W1w),Naar W-11,
+W1w-04,(1-wire netwerk intern in W1w),UTP W-HO/Overloop boven,
+W1w-05,(1-wire netwerk intern in W1w),UTP W-SA/Slaapkamer achter,
+W1w-06,(1-wire netwerk intern in W1w),UTP W-SR/Slaapkamer rechts-vooor,
+W1w-07,(1-wire netwerk intern in W1w),1-wire kabelboom boven (sensoren retourleidingen en schakelkastje),
+W1w-08,(1-wire netwerk intern in W1w),Badkamer Sensor (direct op UTP),
