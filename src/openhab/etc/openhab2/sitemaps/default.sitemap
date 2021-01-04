@@ -10,7 +10,7 @@ sitemap default label="Huis" {
 			Default item=Close_Counters
 			Default item=Home_CircuitsOpen
 		}
-		Selection item=Home_Mode mappings=[""="Vorstbeveiliging", "auto"="Automatisch (Verwarmen en Koelen)", "heat"="Verwarmen", "cool"="Koelen", "manual"="Handbediening"]
+		Selection item=Home_Mode mappings=[""="Vorstbeveiliging", "heat"="Verwarmen", "cool"="Koelen", "manual"="Handbediening"]
 		Switch item=Home_Pump               visibility=[Home_Mode=="manual"]
 	}
 	Frame label="Datum en Tijd" {
