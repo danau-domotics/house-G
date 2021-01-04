@@ -3,7 +3,7 @@ Group    Home                           "Huis"                <house>           
 Group    GF                             "Begane grond"        <groundfloor>      (Home)                             ["GroundFloor"]
 Group    FF                             "Eerste verdieping"   <firstfloor>       (Home)                             ["FirstFloor"]
 
-Group:Number:MAX    Recent_Errors       "Recente foutmeldingen [%.0f]"    <status>
+Group:Number:MAX    Recent_Errors       "Recente foutmeldingen (kritisch) [%.0f]"    <status>
 Group:Number:MAX    Recent_Errors_NonFatal "Recente foutmeldingen (niet kritisch) [%.0f]"    <status>
 Group    Total_Errors                   "Totaal foutmeldingen"            <status>
 
