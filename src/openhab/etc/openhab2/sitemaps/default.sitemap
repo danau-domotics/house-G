@@ -2,6 +2,7 @@ sitemap default label="Huis" {
 	Frame label="Systeem en Bron" {
 		Text item=Home_SystemStatus {
 			Group item=Recent_Errors
+			Group item=Recent_Errors_NonFatal
 			Group item=Total_Errors
 			Default item=Home_SupplyTemp
 			Group item=AllTemps
