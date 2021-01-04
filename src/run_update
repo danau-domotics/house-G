@@ -8,5 +8,25 @@ if [[ $EUID -ne 0 ]]; then
 	exit 1
 fi
 
-echo "No update available!"
+if [ ! -d ansible ]
+then
+	echo "Error: No ansible section present"
+	exit 1
+fi
+
+echo "Updating to latest version"
+echo ""
+
+cd ansible
+# Just override the connection settings and run locally.
+ansible-playbook --connection=local --inventory openhab_server, site.yml
+if [ $? -ne 0 ]
+then
+	echo "Error during update"
+	exit 1
+fi
+
+echo ""
+echo "Update Done"
+
 exit 0

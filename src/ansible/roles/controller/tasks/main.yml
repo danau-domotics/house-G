@@ -167,6 +167,7 @@
   become: true
   become_user: root
   become_method: sudo
+  when: wifi_network is defined
 
 
 # TODO: check if this can be sped-up using synchronize (rsync based)
