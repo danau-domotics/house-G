@@ -4,7 +4,7 @@
 
 Domotics project that is older than Danau Domotics itself.
 
-Most documentation in project is written in Dutch, since the house where this domotics project is done is located in the Netherlands.
+Most documentation in this project is written in Dutch, since the house where this domotics project is done is located in the Netherlands.
 
 ## Nederlandse Introductie
 
