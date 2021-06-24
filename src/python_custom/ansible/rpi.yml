@@ -1,0 +1,8 @@
+---
+# Common settings for raspberry pi systems
+
+# file: rpi.yml
+- hosts: rpi_hosts
+  roles:
+    - rpi_common
+    - rpi_readonly

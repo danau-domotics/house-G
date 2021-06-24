@@ -1,0 +1,11 @@
+---
+# Common settings for climate controller systems
+# file: climate_controller.yml
+
+- hosts: climate_master_controller
+  roles:
+    - climate_controller
+
+- hosts: climate_rpis
+  roles:
+    - climate_handler

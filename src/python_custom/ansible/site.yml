@@ -1,0 +1,6 @@
+---
+# Top-level playbook for Scorpio climate systems
+
+# file: site.yml
+- import_playbook: rpi.yml
+- import_playbook: climate_controllers.yml
