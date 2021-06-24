@@ -1,0 +1,92 @@
+---
+# file: roles/climate-handler/tasks/main.yml
+
+- name: Install supporting programs for climate control
+  apt:
+    update_cache: no
+    name: "{{ packages }}"
+    state: present
+  become: true
+  become_user: root
+  become_method: sudo
+  vars:
+    packages:
+    - daemonize
+    - python3-rpi.gpio
+  when: "package_cache_updated.cache_updated | default(true)"
+  
+- name: Install configparser and mqtt PIP3 packages
+  pip:
+    name: [ 'paho-mqtt', 'configparser' ]
+    state: present
+    executable: pip3    
+  become: true
+  become_user: root
+  become_method: sudo
+  when: "package_cache_updated.cache_updated | default(true)"  
+
+- name: Copy climate control configuration data
+  copy:
+    src: '../../../../{{ item.src }}'
+    dest: '{{ item.dest }}'
+    owner: root
+    mode: u=rw,g=r,o=r
+  with_items:
+    - { src: 'progs/scorpio_climate/etc/scorpio_services/slimat.cfg', dest: '/etc/scorpio_services/' }
+    - { src: 'devices/zones.csv', dest: '/etc/scorpio_services/building/' }
+  register: climate_config_copy
+  become: true
+  become_user: root
+  become_method: sudo
+
+# Default 1-wire port; pin 7, gpio 4 and additional ports
+#    pin 32, gpio 12 and pin 31, gpio 6 (Scorpio Climate systems)
+#    pin 11, gpio 17 and pin 13, gpio 27 (OpenHab systems)
+# TODO: reboot required after changing this.
+- name: Ensure presence of 1-wire config-lines in /boot/config.txt
+  lineinfile:
+    path: /boot/config.txt
+    line: '{{ item }}'
+  with_items:
+    - 'dtoverlay=w1-gpio,gpiopin=4'
+    - 'dtoverlay=w1-gpio,gpiopin=6'
+    - 'dtoverlay=w1-gpio,gpiopin=12'
+  register: boot_config
+  become: true
+  become_user: root
+  become_method: sudo
+
+- name: Copy climate controller executables including startup script
+  copy:
+    src: "../../../progs/scorpio_climate{{ item.path }}/{{ item.filename }}"
+    dest: '{{ item.path }}'
+    owner: root
+    mode: u=rwx,g=rx,o=rx
+  with_items:
+    - { path: '/usr/sbin',    filename: 'slimat_actors' }
+    - { path: '/usr/sbin',    filename: 'slimat_controller' }
+    - { path: '/usr/sbin',    filename: 'slimat_sensors' }
+    - { path: '/etc/init.d/', filename: 'scorpio_climate' }
+    - { path: '/usr/bin', filename: 'scorpio_gpio_switch' }
+    - { path: '/usr/bin', filename: 'scorpio_scan_local' }
+  register: climate_execs_copy
+  become: true
+  become_user: root
+  become_method: sudo
+  
+- name: Reboot the RPI if required
+  reboot:
+  when: boot_config.changed
+  become: true
+  become_user: root
+  become_method: sudo
+
+- name: Climate service scripts enabled and restarted
+  service:
+    name: scorpio_climate
+    enabled: true
+    state: restarted
+  become: true
+  become_user: root
+  become_method: sudo
+  when: climate_config_copy.changed or climate_execs_copy.changed

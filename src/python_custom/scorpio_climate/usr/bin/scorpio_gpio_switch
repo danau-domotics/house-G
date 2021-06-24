@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+import RPi.GPIO as GPIO
+import sys
+
+gpio_number_str=sys.argv[1]
+gpio_state_str=sys.argv[2]
+
+gpio_number = int(gpio_number_str)
+
+gpio_state = None
+if gpio_state_str == "HIGH":
+	gpio_state=GPIO.HIGH
+elif gpio_state_str == "LOW":
+	gpio_state=GPIO.LOW
+else:
+	print 'Invalid state: ', gpio_state_str
+	sys.exit(2)
+	
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(gpio_number, GPIO.OUT)
+GPIO.output(gpio_number, gpio_state)

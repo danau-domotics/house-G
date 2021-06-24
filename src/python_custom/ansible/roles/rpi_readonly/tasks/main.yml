@@ -1,0 +1,120 @@
+---
+# Tasks to run a raspberry pi with read-only filesystems
+# Read-only file-systems should ensure that SD cards don't die too quickly
+# especially for Raspberry PIs that run continuously or often.
+#
+# file: roles/rpi-readonly/tasks/main.yml
+
+- name: Check if swapfile is present
+  stat:
+    path: /var/swap
+  register: swapfile
+
+- name: Check if swap_tool is present
+  stat:
+    path: /sbin/dphys-swapfile
+  register: dphys_swap
+
+- name: Uninstall/disable/remove swapfile
+  command: /sbin/dphys-swapfile uninstall
+  become: true
+  become_user: root
+  become_method: sudo    
+  when:
+    - swapfile.stat.exists == True
+    - dphys_swap.stat.exists == True
+  
+- name: Delete swap-file (if it exists)
+  file:
+    path: /var/swap
+    state: absent
+  become: true
+  become_user: root
+  become_method: sudo  
+
+- name: Remove unwanted packages if required
+  apt:
+    update_cache: no
+    name: "{{ packages }}"
+    state: absent
+    purge: yes
+  become: true
+  become_user: root
+  become_method: sudo
+  vars:
+    packages:
+    - console-setup
+    - dphys-swapfile
+    - info
+    - install-info
+    - man-db
+    - manpages
+    - manpages-dev
+    - libc6-dbg
+    - libraspberrypi-doc
+    - libx11-data
+    - logrotate
+    - rsyslog
+    - triggerhappy
+    - samba-common
+  when: "package_cache_updated.cache_updated | default(true)"
+
+- name: Ensure install of busybox-syslogd and python-apt packages
+  apt:
+    update_cache: no
+    name: "{{ packages }}"
+    state: present
+  become: true
+  become_user: root
+  become_method: sudo
+  vars:
+    packages:
+    - busybox-syslogd
+    # Python apt is required for ansible
+    - python-apt
+ 
+# Mode 1777 to ensure /tmp is world-writable and has the correct sticky bits
+- name: Ensure to-be-writable temp filesystem(s) are tmpfs
+  lineinfile:
+    path: /etc/fstab
+    line: tmpfs           {{ item }}            tmpfs   nosuid,nodev,mode=1777         0       0
+  with_items:
+    - /tmp
+    - /var/tmp
+  become: true
+  become_user: root
+  become_method: sudo
+  when: false
+
+# Mount writable locations as tmpfs
+# Already mounts as tmpfs (by other mechanisms than fstab):
+# - /run
+# - /run/lock
+# - /var/lock (symlink to /run/lock)
+# - /var/run  (symlink to /run)
+- name: Ensure to-be-writable filesystem locations are mounted as tmpfs
+  lineinfile:
+    path: /etc/fstab
+    line: tmpfs           {{ item }}            tmpfs   nosuid,nodev         0       0
+    state: present
+  with_items:
+    - /var/lib/dhcp
+    - /var/lib/dhcpcd5
+    - /var/log
+    - /var/run
+  become: true
+  become_user: root
+  become_method: sudo
+  when: false
+
+#- name: Reboot systems to restore to normal (and read-only filesystem) operations
+#  reboot:
+#  become: true
+#  become_user: root
+#  become_method: sudo
+  
+#- name: Switch root file-system to read-only (or schedule reboot in 2 minutes)
+#  shell: mount -o remount,ro /
+#  become: true
+#  become_user: root
+#  become_method: sudo

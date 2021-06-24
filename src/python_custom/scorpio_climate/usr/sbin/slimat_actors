@@ -1,0 +1,625 @@
+#!/usr/bin/env python3
+
+# Continuously running control loops for controlling climate control valves
+
+# Needs to know which valve is connected to which port
+# Also needs to know opening and closing times of valves
+
+
+##########
+# Imports 
+#########
+import csv
+import os
+import paho.mqtt.client as mqtt
+import RPi.GPIO as GPIO
+import signal
+import time
+import traceback
+from socket import gethostname
+
+
+
+####################
+# Default constants
+##################
+
+# Map that tells how the Relays are connected to a standard scorpio climate raspberry pi controller board
+controller_relay_to_gpio_map = {
+	"Relay1" : { "pin-id": 11, "gpio-id": 17, "relay-signal": "active_low" },
+	"Relay2" : { "pin-id": 13, "gpio-id": 27, "relay-signal": "active_low" },
+	"Relay3" : { "pin-id": 15, "gpio-id": 22, "relay-signal": "active_low" },
+	"Relay4" : { "pin-id": 16, "gpio-id": 23, "relay-signal": "active_low" },
+	"Relay5" : { "pin-id": 18, "gpio-id": 24, "relay-signal": "active_low" },
+	"Relay6" : { "pin-id": 36, "gpio-id": 16, "relay-signal": "active_low" },
+	"Relay7" : { "pin-id": 38, "gpio-id": 20, "relay-signal": "active_low" },
+	"Relay8" : { "pin-id": 40, "gpio-id": 21, "relay-signal": "active_low" }
+}
+
+# Default opening/closing times of 10 minutes (if nothing better is specified). Open/Close times are in seconds.
+default_opening_time = 10 * 60
+default_closing_time = 10 * 60
+
+
+# Maintenance times and durations
+# Check the minimum amount of openings per interval (24 hours)
+# Minimum open transitions per interval is 3
+minimum_maintenance_interval_time = 24 * 60 * 60  # Maintenance interval time (24 hours)
+minimum_valve_openings_per_interval = 3   # Minimum amount of openings that a valve needs to do during interval
+minimum_pump_run_time_per_interval = 2    # Minimum amount of minutes that a pump needs to run during interval
+
+# Pump activity states:
+#   Maintenance_pumping: The pump is generation circulation as part of (requested) maintenance
+#   Maintenance_done:    Maintenance for the pump is done (pump might be pumping, but might also be stopped). Awaiting instructions for next activity.
+#   Pumping:             The pump is generation circulation as part of normal operation
+#   Stopped:             The pump is not active
+pump_states = [
+	"maintenance_pumping",
+	"maintenance_done",
+	"pumping",
+	"stopped"
+]
+
+# Pump transitions:
+#   Maintain:   Perform maintenance as part of regular maintenance
+#   Pump:       Start pumping
+#   Stop:       Stop pumping
+pump_transitions = [
+	"maintain",
+	"pump",
+	"stop"
+]
+
+# Default states for valves:
+#  NO, Normally Open
+#  NC, Normally Closed
+valve_default_positions = [ "NO", "NC" ]
+
+# Valve States:
+#   Closed:              Valve is closed 
+#   Closing:             Valve is moving to closed
+#   Maintenance_Closing: Valve is moving to closed as part of (requested) maintenance
+#   Maintenance_Opening: Valve is moving to open as part of (requested) maintenance
+#   Maintenance_Done:    Valve is opened or closed, waiting for non-maintenance message
+#   Opened:              Valve is open
+#   Opening:             Valve is moving to open
+#   Uncontrolled:        Valve is not actively controlled. Either in a position from previous actions or explicitly placed in "lowest power-consumption" (usually default) position.
+valve_states = [
+	"closed",
+	"closing",
+	"maintenance_closing",
+	"maintenance_opening",
+	"maintenance_done",
+	"opened",
+	"opening",
+	"released",
+	"uncontrolled"
+]
+
+# Transitions that can be requested for a valve
+#   Close:       Request to close
+#   Open:        Request to open
+#   Stop:        Stop control for valve, valve can do maintenance and/or move to "lowest power-consumption" (usually default) position.
+valve_transitions = [
+	"close",
+	"open",
+	"release"
+]
+
+
+
+#########################
+# Command line variables
+#######################
+my_controller_name = gethostname()
+mqtt_client_id     = my_controller_name + "_slimat_actors"
+mqtt_server_host   = "192.168.50.20"
+zone_valves_file   = "/etc/scorpio_services/building/zones.csv"
+zone_pumps_file    = "/etc/scorpio_services/building/zones.csv"
+
+
+
+####################
+# Runtime variables
+##################
+
+
+local_valves_table = {}        # Valves connected to controller where this script runs
+local_pumps_table = {}         # Pumps connected to controller where this script runs
+valves_time_waiting = set([])  # Valves waiting for a timed event (opening, closing, ...)
+mqtt_client = None             # The mqtt client that is used for communication
+continue_running = True        # Variable that controls if the program should continue
+mqtt_is_connected = False      # Variable that tells us if we need to reconnect
+
+
+
+def send_output(output_type, output_text, indent=0):
+	'''
+	Output to console (or webpage, or mmqt message, or other)
+	'''
+	print(str(output_type) + ": " + str(output_text))
+
+
+
+def send_actor_status(actor_type, actor_id, status):
+	'''
+	Send the status of a pump or valve over mqtt.
+	'''
+	assert(actor_type in ["pump", "valve"])
+	mqtt_target = actor_type + "/" + my_controller_name + "/" + actor_id + "/status"
+	
+	if mqtt_client is not None:
+		send_output("INFO", "Publishing " + str(status) + " to "  + mqtt_target)
+		mqtt_client.publish(mqtt_target, payload=str(status))
+	else:
+		send_output("WARNING", "No mqtt client, unable to publish " + actor_type + " status for " + str(actor_id))
+
+
+def pump_stop(pump_id):
+	'''
+	Stop a pump from pumping
+	'''
+	set_climate_control_relay(pump_id, activate=False)
+	
+def pump_activate(pump_id):
+	'''
+	Start pumping for a pumps
+	'''
+	set_climate_control_relay(pump_id, activate=True)
+
+def pump_do_state_transition(pump_id, transition):
+	'''
+	Lookup the pump data and states in transition table and execute state transitions
+	'''
+	if pump_id not in local_pumps_table:
+		if pump_id.startswith("test-selftest-"):
+			# Perform state transition for test-valve
+			# For now we do instantaneous transitions for test-valves
+			if transition == "pump":
+				send_actor_status("pump", pump_id, "pumping")
+			elif transition == "stop":
+				send_actor_status("pump", pump_id, "stopped")
+			else:
+				send_actor_status("pump", vpump_id, "uncontrolled")
+		else:
+			send_output("WARNING", "Pump not in pumps table. Sending missing for " + str(pump_id))
+			send_actor_status("pump", pump_id, "missing")
+		return
+		
+	pump = local_pumps_table[pump_id]
+	current_state = pump['state']
+	
+	# Execute state machine
+	if transition == "pump":
+		if pump['state'] != "pumping":
+			pump_activate(pump_id)
+			# Register pumping state and start-time
+			pump['state'] = "pumping"
+			pump["state_enter_timestamp"] = time.time()
+	elif transition == "stop":
+		if pump['state'] == "pumping":
+			time_now = time.time()
+			# TODO: pump until minimal pumping time is reached
+
+		pump_stop(pump_id)
+		# Register stopped state and time when stopped
+		pump['state'] = "stopped"
+		pump["state_enter_timestamp"] = time.time()
+		
+	# Just always send the pump status
+	send_actor_status("pump", pump_id, pump['state'])
+
+
+
+def valve_do_state_transition(valve_id, transition):
+	'''
+	Lookup the valve data and states in transition table and execute state transitions
+	'''
+
+	if valve_id not in local_valves_table:
+		# Valve not found, it is missing
+		send_output("WARNING", "Valve not in valves table. Sending missing for " + str(valve_id))
+		send_actor_status("valve", valve_id, "missing")
+		return
+
+	valve_data = local_valves_table[valve_id]
+	valve_default_position = valve_data["default_position"]
+	if valve_default_position not in valve_default_positions:
+		send_output("ERROR", "Unknown default state " + str(valve_default_position) + ". Sending uncontrolled for " + str(valve_id))
+		send_actor_status("valve", valve_id, "uncontrolled")
+		return
+	current_state = valve_data["state"]
+	if current_state not in valve_states:
+		send_output("ERROR", "Unknown valve state " + str(current_state) + ". Sending uncontrolled for " + str(valve_id))
+		send_actor_status("valve", valve_id, "uncontrolled")
+		return
+	recent_opened_list = valve_data['recent_opened']
+
+	# Update (prune) opening list
+	# All entries that are not in the maintenance interval are removed
+	current_timestamp = time.time()	
+	while len(recent_opened_list) and recent_opened_list[0] < (current_timestamp - minimum_maintenance_interval_time):
+		recent_opened_list.pop()
+	
+	# Retrieve state timestamp data
+	state_enter_timestamp = valve_data["state_enter_timestamp"]
+	if not state_enter_timestamp:
+		# Generate timestamp data and store in table when it was missing
+		state_enter_timestamp = time.time()
+		valve_data["state_enter_timestamp"] = state_enter_timestamp
+
+	# Set defaults for missing data
+	open_duration = valve_data["open_duration"]
+	if not open_duration:
+		open_duration = default_opening_time
+	close_duration = valve_data["close_duration"]
+	if not close_duration:
+		close_duration = default_closing_time
+	
+	# Execute state machine, by default we stay in the state we are in
+	next_state = current_state
+	
+	if transition == "release":
+		# The release transition overrides anything else.
+		next_state = "released"
+	elif current_state == "maintenance_opening":
+		# Maintenance works on time-intervals and ignores all transitions except stop
+		if state_enter_timestamp + open_duration <= current_timestamp:
+			recent_opened_list.append(current_timestamp)
+			if len(recent_opened_list) < minimum_valve_openings_per_interval:
+				if set_climate_control_valve(valve_id, "closed", valve_default_position):
+					next_state = "maintenance_closing"
+				else:
+					next_state = "uncontrolled"
+			else:
+				# After we opened a sufficient amount of times during the interval, then
+				# we can just go to opened directly
+				next_state = "opened"
+	elif current_state == "maintenance_closing":
+		# Another maintenance state. Wait for close, then switch to opening
+		if state_enter_timestamp + close_duration <= current_timestamp:
+			if set_climate_control_valve(valve_id, "open", valve_default_position):
+				next_state = "maintenance_opening"
+			else:
+				next_state = "released"
+	elif transition == "open":
+		if current_state == "opened":
+			pass
+		elif current_state == "opening":
+			# Switch to opened when valve had time to fully open
+			if state_enter_timestamp + open_duration <= current_timestamp:
+				next_state = "opened"
+				# List opened time for maintenance purposes
+				recent_opened_list.append(current_timestamp)			
+		else:
+			# Not in opening or opened state:
+			# Open valve and go to opening, but transition to uncontrolled when opening fails
+			if set_climate_control_valve(valve_id, "open", valve_default_position):
+				next_state = "opening"
+			else:
+				next_state = "uncontrolled"
+	elif transition == "close":
+		if current_state == "closed":
+			pass
+		elif current_state == "closing":
+			if state_enter_timestamp + close_duration <= current_timestamp:
+				# Closing, only switch to opened when valve had time to fully close
+				next_state = "closed"
+		else:
+			# Not in closed or closing state:
+			# Close valve, but transition to uncontrolled when closing fails
+			if set_climate_control_valve(valve_id, "closed", valve_default_position):
+				next_state = "closing"			
+			else:
+				next_state = "uncontrolled"
+	elif transition == "maintain":
+		# Start maintenance loop with closing
+		if set_climate_control_valve(valve_id, "closed", valve_default_position):
+			next_state = "maintenance_closing"
+		else:
+			next_state = "uncontrolled"
+	elif transition is None:
+		if current_state in ["closed", "opened", "released", "uncontrolled"]:
+			# Set identical next state to trigger notification
+			next_state = current_state
+	else:
+		send_output("ERROR", "Unknown state transition " + str(transition) + " for valve " + str(valve_id))
+	
+	# Send update if we reached a state that sends updates
+	if next_state in ["closed", "opened", "released", "uncontrolled"]:
+		send_actor_status("valve", valve_id, next_state)
+
+	# Update table with new state if we did get a new state
+	if next_state != current_state and next_state is not None:
+		valve_data["state"] = next_state
+		valve_data["state_enter_timestamp"] = time.time()
+
+
+def read_slimat_csv_data_file(config_file_name):
+	"""
+	Default reader to read a slimat csv data
+	file. Uses csv.DictReader to read the file into an array with
+	dictionaries.
+	"""
+	with open(config_file_name) as config_data_file:
+		# Just read the data through csv.DictReader and return it to caller
+		# But wrap in new list to ensure that the whole file gets read before it
+		# gets closed.
+		return list(csv.DictReader(config_data_file, delimiter=";"))
+
+
+def get_zones_table():
+	'''
+	Read CSV file with data on connected sensors and valves
+	'''
+	zones_read = {}
+	with open(zone_valves_file) as zone_file:
+		zone_reader = csv.DictReader(zone_file, delimiter=";")
+		for line in zone_reader:
+			if "Zone-Code" in line:
+				if line["Zone-Code"]:
+					zones_read[line["Zone-Code"]] = line
+			else:
+				send_output("WARNING", "Invalid line: " + str(line))
+			
+	return zones_read
+
+
+def set_climate_control_gpio(gpio_number, gpio_state):
+	'''
+	Set gpio for a certain heating control function
+	The higher level functions should know how to map LOW and HIGH to the actual function(s)
+	'''
+	GPIO.setmode(GPIO.BCM)
+	GPIO.setwarnings(False)
+	GPIO.setup(gpio_number, GPIO.OUT)
+	GPIO.setwarnings(True)
+	GPIO.output(gpio_number, gpio_state)
+	time.sleep(1)
+
+
+def set_climate_control_relay(relay_name, activate=False):
+	'''
+	Set a relay for the climate control system to active or off.
+	The higher level functions should know what states of the relay map to actual system states/functions.
+
+	:param gpio_number:   The gpio-pin where the valve is connected to.
+	:param activate:      True if the relay should relay power, False if the relay should block power
+	:param relay_signal:  Relay is either active_low or active_high. Determines how high and low map to active and off states.
+	'''
+
+	if relay_name not in controller_relay_to_gpio_map.keys():
+		send_output("ERROR", "Relay " + relay_name + " not found.")
+		return False
+
+	gpio_number  = controller_relay_to_gpio_map[relay_name]["gpio-id"]
+	relay_signal = controller_relay_to_gpio_map[relay_name]["relay-signal"]
+
+	# On active high, we just set the signal according to the boolean.
+	set_to_high = activate
+	# On active low, we need to invert the signal.
+	if (relay_signal == "active_low"):
+		set_to_high = not set_to_high
+		
+	signal_to_set=GPIO.HIGH
+	if not set_to_high:
+		signal_to_set=GPIO.LOW
+	
+	set_climate_control_gpio(gpio_number, signal_to_set)
+
+	return True
+
+
+def set_climate_control_valve(relay_name, desired_state="open", valve_default_position="NC"):
+	'''
+	Set a valve for the climate control system connected to the current/local controller.
+	Valve can be set to open, closed or the hardware default position.
+	
+	:param relay_name:    The name/address of the relay that the valve is connected to. Used for looking up gpio data.
+	:param desired_state: Desired state, either "open", "closed" or "default".
+	:param valve_default_position: Normal state for the valve when no power applied, NC (Normally closed) or NO (Normally open)
+	'''
+	
+	if desired_state not in ["closed", "open", "default"]:
+		send_output("ERROR", "Desired valve state " + str(desired_state) + " not recognized")
+		return False
+	if valve_default_position not in ["NC", "NO"]:
+		send_output("ERROR", "default valve state " + str(valve_default_position) + " not recognized")
+		return False
+	
+	go_for_default = (desired_state == "default") or \
+		(desired_state == "open" and valve_default_position == "NO") or \
+		(desired_state == "closed" and valve_default_position == "NC")
+		
+	# We want to active the relay to go to the non-default position.
+	return set_climate_control_relay(relay_name, not go_for_default)
+
+
+
+def get_local_pumps_table(controller_name):
+	'''
+	Load the valves table from CSV to a local variable
+	'''
+	input_items = read_slimat_csv_data_file(zone_pumps_file)	
+	pumps_table = {}
+
+	for line in input_items:
+		if line['Pump-Controller'] == controller_name:
+			pump_address = line['Pump-Address']
+			if pump_address:
+				if pump_address not in pumps_table:
+					pumps_table[pump_address] = {}
+
+					# Add pump open/close states as runtime data
+					pumps_table[pump_address]['state'] = "uncontrolled"
+
+					# Maximum amount of time (in seconds) that this pump should be idle
+					# Used for maintenance
+					# TODO: set defaults and use the variables here
+					pumps_table[pump_address]['max_idle_time'] = 0
+					# Minimum amount of time (in seconds) that a pump needs to run
+					# Used both for maintenance and lifetime saving
+					pumps_table[pump_address]['minimum_run_duration'] = 0
+					# Time  (in seconds) pump needs to stop
+					pumps_table[pump_address]['stop_duration'] = 0
+
+					# Variable to deterine if pump needs maintenance
+					# Last time the pump was running its minimum duration
+					pumps_table[pump_address]['last_pumped'] = 0
+				else:
+					send_output("WARNING", "duplicate entries found for pump " + pump_address)
+
+	return pumps_table
+
+def get_local_valves_table(controller_name):
+	'''
+	Load the valves table from CSV to a local variable
+	'''
+	input_items = read_slimat_csv_data_file(zone_valves_file)
+	valves_table = {}
+
+	for line in input_items:
+		if line['Valve-Controller'] == controller_name:
+			valve_address = line['Valve-Address']
+			if valve_address:
+				if valve_address not in valves_table:
+					send_output("DEBUG", "Loading valve " + valve_address)
+					valves_table[valve_address] = {}
+					valves_table[valve_address]['default_position'] = line['Valve-Default-State']
+					open_duration = line['Valve-Open-Duration']
+					if not open_duration:
+						open_duration = default_opening_time
+					valves_table[valve_address]['open_duration'] = open_duration
+					close_duration = line['Valve-Close-Duration']
+					if not close_duration:
+						close_duration = default_closing_time
+					valves_table[valve_address]['close_duration'] = close_duration
+					# Add valve open/close states as runtime data
+					valves_table[valve_address]['state'] = "uncontrolled"
+					valves_table[valve_address]['control_state'] = "remote"
+					valves_table[valve_address]['state_enter_timestamp'] = time.time()
+					valves_table[valve_address]['recent_opened'] = []
+				else:
+					send_output("WARNING", "duplicate entries found for valve " + valve_address)
+
+	return valves_table
+
+
+
+def terminate_program(signal, stack_frame):
+	global mqtt_client
+	global continue_running
+	send_output("DEBUG", "Signalling termination")
+	continue_running = False
+	if mqtt_client is not None:
+		send_output("DEBUG", "Stopping MQTT client")
+		mqtt_client.disconnect()
+	else:
+		send_output("DEBUG", "No MQTT Client found")
+
+
+
+def on_connect(client, userdata, flags, result_code):
+	'''
+	Callback for when the mqtt client made a connection with the server
+	'''
+	global mqtt_is_connected
+	mqtt_is_connected = True
+	send_output("INFO", "Connected as " + mqtt_client_id + " with result code " + str(result_code))
+	# Subscribing in connect to also have the subscriptions when reconnecting.
+	mqtt_client.subscribe("valve/" + my_controller_name + "/+/set", qos=0)
+	mqtt_client.subscribe("pump/" + my_controller_name + "/+/set", qos=0)
+	send_output("DEBUG", "Subscriptions done")
+
+def on_disconnect(client, userdata, rc):
+	global mqtt_is_connected
+	global continue_running
+
+	send_output("INFO", "Disconnected from MMQT for reason " + str(rc))
+	mqtt_is_connected = False
+	
+	# Only reconnect if the client identifier was wrong or if the server was unavailable
+	if (rc not in [1, 2, 3]):
+		send_output("ERROR", "Reconnect won't fix the connection issue, terminating", indent=1)
+		continue_running = False
+
+# Callback for when a published message is received
+def on_message(client, userdata, msg):
+	global continue_running
+	try:
+		payload = msg.payload
+		if isinstance(payload, (bytes, bytearray)):
+			payload = str(payload.decode())
+
+		send_output("INFO", "Message received: " + str(msg.topic) + " (" + payload + ")")
+		topic_parts = msg.topic.split("/")
+		if len(topic_parts) != 4:
+			send_output("WARNING", "Ignoring mismatching topic: " + str(msg.topic))
+			return
+		if topic_parts[3] != "set":
+			send_output("DEBUG", "Ignoring non-set message: " + str(msg.topic))
+			return
+		if (topic_parts[1] != my_controller_name):
+			send_output("DEBUG", "Ignoring message for other controller: " + str(topic_parts[1]))
+			return
+		if topic_parts[0] == "valve":
+			valve_id = topic_parts[2]
+			if valve_id not in controller_relay_to_gpio_map.keys():
+				send_output("WARNING", "(ignoring): Received message for unknown valve_id/relay_id: " + str(valve_id))
+			valve_do_state_transition(valve_id, payload)
+		elif topic_parts[0] == "pump":
+			pump_id = topic_parts[2]
+			if pump_id not in controller_relay_to_gpio_map.keys():
+				send_output("WARNING", "(ignoring): Received message for unknown pump_id/relay_id: " + str(pump_id))
+			pump_do_state_transition(pump_id, payload)
+		else:
+			send_output("DEBUG", "Ignoring unknown actor type: " + str(topic_parts[0]))
+	except Exception:
+		traceback.print_exc()
+		send_output("ERROR", "Fatal exception, terminating program")
+		continue_running = False
+
+
+################
+# Main function
+##############
+
+send_output("INFO", "Load configuration data for " + my_controller_name)
+local_valves_table = get_local_valves_table(my_controller_name)
+local_pumps_table = get_local_pumps_table(my_controller_name)
+
+send_output("DEBUG", "Install signalhandlers to allow program to terminate gracefully")
+signal.signal(signal.SIGTERM, terminate_program)
+signal.signal(signal.SIGINT, terminate_program)
+signal.signal(signal.SIGQUIT, terminate_program)
+
+send_output("INFO", "Start MQTT main loop")
+#TODO: check waiting for connection (in case master comes up later or restarts)
+mqtt_client = mqtt.Client(mqtt_client_id)
+mqtt_client.on_connect = on_connect
+mqtt_client.on_message = on_message
+mqtt_client.on_disconnect = on_disconnect
+mqtt_client.connect(mqtt_server_host)
+mqtt_is_connected = True
+mqtt_client.loop(1.0)
+last_time_run = 0
+while continue_running:
+	if not mqtt_is_connected:
+		send_output("DEBUG", "Not connected, trying reconnect in 5 seconds")
+		time.sleep(5)
+		send_output("DEBUG", "Not connected, reconnecting")
+		mqtt_client.reconnect()
+	# Run for 10 seconds before checking timed waits
+	mqtt_client.loop(10.0)
+	# Check/transfer valves and pumps not too often
+	now = time.time()
+	if (last_time_run + 20) <= now:
+		last_time_run = now
+		for valve_id in local_valves_table:
+			valve_do_state_transition(valve_id, None)
+		for pump_id in local_pumps_table:
+			pump_do_state_transition(pump_id, None)
+
+send_output("INFO", "Disconnecting MQTT and stopping program")
+mqtt_client.disconnect()
+mqtt_client.loop(1)

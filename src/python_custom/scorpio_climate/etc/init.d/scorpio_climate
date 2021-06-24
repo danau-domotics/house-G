@@ -1,0 +1,190 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          scorpio_climate
+# Required-Start:    $local_fs $remote_fs $network $syslog $time udev dbus
+# Required-Stop:     $local_fs $remote_fs $network $syslog $time udev dbus
+# Should-Start:      mosquitto udev dbus
+# Should-Stop:       mosquitto udev dbus
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Scorpio climate service.
+# Description:       Scorpio climate service which controls building zone heating and zone cooling.
+### END INIT INFO
+
+DAEMONS="/usr/sbin/slimat_actors
+/usr/sbin/slimat_controller
+/usr/sbin/slimat_sensors"
+
+MAX_DIE_TIME=10
+
+
+function check_runs(){
+	if [ "$1" == "" ]
+	then
+		# Return non-zero exit code (not running)
+		return 1
+	fi
+	# Returns 0 if running, and 1 if not
+	ps -p $PID > /dev/null
+}
+
+function get_pid_file_name(){
+	if [ "$1" == "" ]
+	then
+		echo ""
+		return
+	fi
+	echo "/run/$(basename $1).pid"
+}
+
+function get_lock_file_name(){
+	if [ "$1" == "" ]
+	then
+		echo ""
+		return
+	fi
+	echo "/run/lock/$(basename $1).lock"
+}
+
+function get_pid(){
+	PID_FILE=$(get_pid_file_name "$1")
+	if [ "${PID_FILE}" == "" ]
+	then
+		echo ""
+		return
+	fi
+	if [ ! -f "${PID_FILE}" ]
+	then
+		# No PID-file. Return empty
+		echo ""
+		return
+	fi
+	# Return the PID as listed in the PID-file
+	PID=$(cat "${PID_FILE}")
+	
+	# No PID in PID-file. Remove file and return empty
+	if [ "" == "${PID}" ]
+	then
+		rm -f "${PID_FILE}" > /dev/null 2>&1
+		echo ""
+		return
+	fi
+	
+	# Check if the program still runs
+	kill -0 $PID > /dev/null 2>&1
+	if [ $? -ne 0 ]
+	then
+		rm -f "${PID_FILE}" > /dev/null 2>&1
+		echo ""
+		return
+	fi
+
+	# Return the PID as found
+	echo "${PID}"
+}
+
+function start_daemons(){
+	echo "Starting daemons"
+	for DAEMON in ${DAEMONS}
+	do
+		PID_FILE=$(get_pid_file_name ${DAEMON})
+		LOCK_FILE=$(get_lock_file_name ${DAEMON})
+		echo "${DAEMON} starting"
+		#daemonize -p "${PID_FILE}" -l "${LOCK_FILE}" "${DAEMON}"
+		echo daemonize -p "${PID_FILE}" -l "${LOCK_FILE}" -o "/var/log/$(basename ${DAEMON}).out.log" -e "/var/log/$(basename ${DAEMON}).err.log" "${DAEMON}"
+		daemonize -p "${PID_FILE}" -l "${LOCK_FILE}" -o "/var/log/$(basename ${DAEMON}).out.log" -e "/var/log/$(basename ${DAEMON}).err.log" "${DAEMON}"
+	done
+}
+
+function stop_daemons(){
+	echo "Stopping daemons"
+	RUN_DAEMONS=""
+	for DAEMON in ${DAEMONS}
+	do
+		PID=$(get_pid "${DAEMON}")
+		if [ "${PID}" == "" ]
+		then
+			echo "${DAEMON} not running"
+		else
+			echo "${DAEMON} (${PID}) receiving SIGTERM"
+			kill -s TERM $PID
+			RUN_DAEMONS="${RUN_DAEMONS}${DAEMON} "
+		fi
+	done
+	KILL_START=$(date +%s)
+	
+	while [ "${RUN_DAEMONS}" != "" ]
+	do
+		sleep 1
+		CHECK_DAEMONS="${RUN_DAEMONS}"
+		RUN_DAEMONS=""
+		for DAEMON in ${CHECK_DAEMONS}
+		do
+			PID=$(get_pid "${DAEMON}")
+			if [ "${PID}" == "" ]
+			then
+				echo "${DAEMON} stopped"
+			else
+				KILL_NOW=$(date +%s)
+				if (( ${KILL_START} + ${MAX_DIE_TIME} < ${KILL_NOW} ))
+				then
+					echo "${DAEMON} (${PID}) receiving SIGKILL"
+					kill -s KILL $PID
+				else
+					echo "${DAEMON} waited upon for termination"
+				fi
+				RUN_DAEMONS="${RUN_DAEMONS}${DAEMON} "
+			fi
+		done		
+	done
+}
+
+function status_daemons(){
+	echo "Checking daemons"
+	for DAEMON in ${DAEMONS}
+	do
+		PID=$(get_pid "${DAEMON}")
+		check_runs "${PID}"
+		if [ $? -eq 0 ]
+		then
+			echo "${DAEMON} running (PID: ${PID})"
+		else
+			echo "${DAEMON} not running"
+		fi
+	done
+	
+}
+
+# Main function
+
+case "$1" in
+	"start")
+		start_daemons
+		exit 0
+		;;
+	"stop")
+		stop_daemons
+		exit 0
+		;;
+	"restart")
+		stop_daemons
+		echo ""
+		start_daemons
+		exit 0
+		;;
+	"force-reload")
+		stop_daemons
+		echo ""
+		start_daemons
+		exit 0
+		;;
+	"status")
+		status_daemons
+		exit 0
+		;;
+	*)
+		echo "Error: Need to give parameter start or stop"
+		;;
+esac
+
+exit 1

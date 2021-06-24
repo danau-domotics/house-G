@@ -1,0 +1,125 @@
+---
+# Common Tasks for raspberry PIs used in Scorpio/Danau setups.
+#
+# file: roles/rpi-common/tasks/main.yml
+
+# Only relevant on rpis with readonly filesystems.
+# But the check and remount tasks don't harm other rpis.
+- name: Check whether root filesystem is writable
+  command: grep "/dev/root / ext4 rw" /proc/mounts
+  register: check_mount_rw_root
+  failed_when: false
+  changed_when: no
+
+# Only relevant on rpis with readonly filesystems.
+# But the check and remount tasks don't harm other rpis.
+- name: Check whether boot filesystem is writable
+  command: grep "/boot vfat rw" /proc/mounts
+  register: check_mount_rw_boot
+  failed_when: false
+  changed_when: no  
+
+- name: Switch root file-system to read/write if required
+  command: mount -o remount,rw /
+  become: true
+  become_user: root
+  become_method: sudo
+  args:
+    warn: false # Set warnings to false to avoid mount warning
+  when: check_mount_rw_root.rc != 0
+
+- name: Switch boot file-system to read/write if required
+  command: mount -o remount,rw /boot
+  become: true
+  become_user: root
+  become_method: sudo
+  args:
+    warn: false # Set warnings to false to avoid mount warning
+  when: check_mount_rw_boot.rc != 0
+  
+- name: Check if WiFi power-management is off
+  shell: /sbin/iw wlan0 get power_save | grep 'Power save. off'
+  register: check_wifi_pm_off
+  failed_when: false
+  changed_when: no
+  
+- name: Disable WiFi power-management before updating
+  command: /sbin/iw wlan0 set power_save off
+  become: true
+  become_user: root
+  become_method: sudo
+  when: check_wifi_pm_off.rc == 1
+  
+- name: Set hostname according to inventory
+  hostname:
+    name: '{{ inventory_hostname }}'
+  become: true
+  become_user: root
+  become_method: sudo
+  when: check_wifi_pm_off.rc == 1
+
+- name: Update /etc/hosts with hostname according to inventory
+  replace:
+    path: /etc/hosts
+    regexp: '(\s+)raspberrypi(\s+.*)?$'
+    replace: '\1{{ inventory_hostname }}\2'
+    backup: yes 
+  become: true
+  become_user: root
+  become_method: sudo
+
+- name: Update apt-cache if last update is more than a day ago
+  apt:
+    cache_valid_time: 86400
+  #register: package_cache_updated
+  become: true
+  become_user: root
+  become_method: sudo
+
+  
+# Cache valid time set to 1 day. Reduces updates to once a day.
+- name: Upgrade all packages to the latest version
+  apt:
+    update_cache: no
+    name: "*"
+    state: latest
+    autoclean: yes
+    autoremove: yes
+    purge: yes
+  become: true
+  become_user: root
+  become_method: sudo
+  when: "package_cache_updated.cache_updated | default(true)"
+
+# Save diskspace by cleaning downloaded files  
+- name: Clean any cached/downloaded apt packages
+  command: apt-get clean
+  become: true
+  become_user: root
+  become_method: sudo
+  args:
+    warn: false # Set warnings to false to avoid apt-get warning
+  when: "package_cache_updated.cache_updated | default(true)"
+
+- name: Ensure install of package installers (Python-PIP)
+  apt:
+    update_cache: no
+    name: "{{ packages }}"
+    state: present
+  become: true
+  become_user: root
+  become_method: sudo
+  vars:
+    packages:
+    - python3-pip
+    - python3-setuptools
+    - python3-setuptools-git
+  when: "package_cache_updated.cache_updated | default(true)"
+  
+- name: Set unique history settings (globally)
+  lineinfile:
+    path: /etc/profile
+    line: "export HISTCONTROL=ignoredups"
+  become: true
+  become_user: root
+  become_method: sudo

@@ -1,0 +1,21 @@
+# file: production
+# Servers in use for climate control.
+
+[climate_master_controller]
+climate-master ansible_ssh_host=192.168.50.20 ansible_connection=ssh ansible_user=pi ansible_remote_tmp=/tmp/ansible-rpi
+
+[climate_handler]
+climate-one ansible_ssh_host=192.168.50.18 ansible_connection=ssh ansible_user=pi ansible_remote_tmp=/tmp/ansible-rpi
+climate-sentinel ansible_ssh_host=192.168.50.21 ansible_connection=ssh ansible_user=pi
+climate-tropical ansible_ssh_host=192.168.50.22 ansible_connection=ssh ansible_user=pi
+climate-shielded ansible_ssh_host=192.168.50.19 ansible_connection=ssh ansible_user=pi
+
+[climate_rpis:children]
+climate_master_controller
+climate_handler
+
+[domotics_tasklists:children]
+climate_master_controller
+
+[rpi_hosts:children]
+climate_rpis

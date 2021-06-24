@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import csv
+
+# List entries in directory
+# Scan for name lookup
+
+w1deviceDir = "/sys/bus/w1/devices"
+config_file_name = "/etc/scorpio_services/building/zones.csv"
+
+def read_slimat_csv_data_file(config_file_name):
+	"""
+	Default reader to read a slimat csv data
+	file. Uses csv.DictReader to read the file into an array with
+	dictionaries.
+	"""
+	with open(config_file_name) as config_data_file:
+		# Just read the data through csv.DictReader and return it to caller
+		# But wrap in new list to ensure that the whole file gets read before it
+		# gets closed.
+		return list(csv.DictReader(config_data_file, delimiter=";"))
+
+
+def find_zone(config_data, sensorId):
+	for config_line in config_data:
+		if "Zone-Name" in config_line:
+			if 'Room-Sensor-Address' in config_line and config_line['Room-Sensor-Address'] == sensorId:
+				return "(room)   " + config_line["Zone-Name"]
+			if 'Supply-Sensor-Address' in config_line and config_line['Supply-Sensor-Address'] == sensorId:
+				return "(supply) " + config_line["Zone-Name"]
+			if 'Return-Sensor-Address' in config_line and config_line['Return-Sensor-Address'] == sensorId:
+				return "(return) " + config_line["Zone-Name"]
+	return "(unknown)"
+
+
+
+
+config_data = read_slimat_csv_data_file(config_file_name)
+
+if not os.path.exists(w1deviceDir):
+	print("Error: " + w1deviceDir + " does not exist")
+	print("Did you update /boot/config.txt and did you reboot?")
+	sys.exit(1)
+	
+if not os.path.isdir(w1deviceDir):
+	print("Error: " + w1deviceDir + " is not a directory")
+	sys.exit(1)
+
+anyBus = False
+for w1bus in os.listdir(w1deviceDir):
+	if "w1_bus_master" in w1bus:
+		anyBus = True
+		anySens = False
+		for w1sensor in os.listdir(w1deviceDir + "/" + w1bus):
+			if(w1sensor.startswith("28-")):
+				anySens = True
+				w1sensorPath = w1deviceDir + "/" + w1bus + "/" + w1sensor
+				with open(w1sensorPath + "/w1_slave", 'r') as sensorContent:
+					# Take the 9th word from the 2nd line
+					sensTemp = sensorContent.read().split("\n")[1].split(" ")[9]
+					
+					if sensTemp[0:2] != "t=":
+						print("ERROR: read invalid temperature " + str(sensTemp) + " for sensor " + w1bus + "/" + w1sensor)
+					else:
+						sensTemp=float(sensTemp[2:])/1000
+						print(w1bus + "/" + w1sensor + ": " + str(round(sensTemp, 1)) + "   ---   " + find_zone(config_data, w1sensor))
+		if not anySens:
+			print(w1bus + " (no sensors found)")
+
+if not anyBus:
+	print("(no busses found)")
+
+sys.exit(0)

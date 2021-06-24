@@ -1,0 +1,2383 @@
+#!/usr/bin/env python3
+
+# Slimat controller.
+#  Controls the behaviour of the heating/cooling zones as defined.
+#  Also acts as "signals mapper" to translate sensor measurement data into zone measurement data
+
+# Climate control messages translator
+#  Reads mqtt messages and translates them for other users
+#
+# Examples:
+#  - raw-sensor data to room-based sensor-data
+#  - generic messages to domoticz input(s)
+#  - domoticz control signals to generic control signals
+#
+# This script is to be run continously (preferably as daemon).
+
+
+#############
+# MQTT topics
+#############
+#
+# Raw sensors, read by sensor_reader and published to signals_translator
+# Controller is 1-wire for 1-wire type connections (regardless of actual controller)
+#  sensor/controller/id_or_address/temperature   (number)
+#  sensor/controller/id_or_address/humidity      (number)
+#
+# Room/Zone data, converted from raw sensors by signals_translator and forwarded
+#  zone/id/temperature/actual  (number)
+#  zone/id/temperature/supply  (number)
+#  zone/id/temperature/return  (number)
+#  zone/id/humidity/actual     (number)
+#
+# Room/Zone settings, converted from controller to raw room signals
+#  zone/id/valve/set           (open, close, default)
+#  zone/id/pump/set            (pump, stop)
+#
+# Room/Zone statusses, converted from raw signals to room signals
+#  zone/id/valve/status        (opened, closed, unknown)
+#  zone/id/pump/status         (pumping, stopped)
+#  zone/id/circulation/status  (inactive, starting, running) -> Not here, controller needs to control valves
+#
+# Room/Zone settings, from user-inputs
+#  zone/id/temperature/desired (number)
+#  zone/id/climate-control/set (on, off)
+#
+# Valve/relay data, raw towards controller
+#  Setting the desired state for a certain valve:
+#    valve/controller/id_or_address/set   (open, close, maintain, default)
+#  Receiving the actual (or calculated) state for a valve:
+#    valve/controller/id_or_address/status (opened, closed, uncontrolled, maintenance)
+#
+# Pump/relay data, raw towards controller
+#  Setting the desired state for the pump:
+#    pump/controller/id_or_address/set    (pump, stop, maintain)
+#    pump/controller/id_or_address/status (pumping, stopped, maintenance)
+#
+# System data
+#   Online state sent at regular intervals, shutdown state at shutdown
+#    climate-controller/id_or_address/status (online, shutdown)
+
+
+# Required functions:
+#  All: (periodic) read-out and publish of raw temperature (and humidity) sensors
+#  Master: Receive and translate from raw sensor data to room sensor data
+#  Master: Store desired temperature (and humidity) for all rooms
+#  Master: Calculate climate action(s) and set required valves
+#  Master: Calculate safe-to-start-pump and start pump when safe to do so
+#  Master: Track room updates (and signal outdated rooms)
+#  Master: Track other controller states (and signal down controllers)
+#  All: Track valve states (open, close, etc)
+#  All: Track timed valves (opening to open, etc)
+#  All: Publish valve states
+#  All: Listen for valve state updates and execute them
+
+
+
+######################
+# Controller Programs
+####################
+#
+# Programs:
+#  Heating: bring temperature up to desired temperature and keep it there.
+#  Cooling: bring temperature down to desired temperature and keep it there.
+#  Maintenance: open and close valves a number of times as part of maintenance.
+#
+# Maintenance (actuators):
+#  close/open actuators a number of times at regular intervals
+#
+# Maintenance pump(s):
+#  Activate on open valve(s), minimum run-time 2 minutes per interval
+#
+# Maintenance zones:
+#  Close all zones except one.
+#  Pump full on single zone.
+#  (combine with basic or extensive maintenance?)
+#
+# Zone maintenace one per day?
+#  Sort alphabetically and select zone based on day-of-year?
+
+# Power-saving:
+#  Track pump-users and soft-stop users (power-saving)
+#  Soft-stop users need state-update to valve closing
+#  Pump only starts when soft-stop users have closed valves
+
+##################
+# Default Imports
+################
+import datetime
+import signal
+import time
+import traceback
+from socket import gethostname
+
+
+######################
+# Conditional Imports
+####################
+test_mode = False
+
+try:
+	import configparser
+	import csv
+except:
+	print ("Import of parsing functions failed, switched to test-mode")
+	test_mode = True
+try:
+	import paho.mqtt.client as mqtt
+except:
+	print ("Import of Paho MQTT functions failed, switched to test-mode")
+	test_mode = True
+	
+
+# TODO: fix local/global variables
+# TODO: https://stackabuse.com/local-and-global-variables-in-python/
+# TODO: https://www.python-course.eu/python3_global_vs_local_variables.php
+
+#########################
+# Command line variables
+#######################
+slimat_config_file = "/etc/scorpio_services/slimat.cfg"
+html_status_output = "/var/www/html/slimat_status.html"
+my_controller_name = gethostname()
+mqtt_client_id     = my_controller_name + "_slimat_controller"
+mqtt_server_host   = "192.168.50.20"
+zones_config_file  = "/etc/scorpio_services/building/zones.csv"
+temp_delta_allowed = 0.3
+
+
+####################
+# Runtime variables
+##################
+continue_running = True
+mqtt_client = None
+mqtt_is_connected = False
+pumps_tracking_table = {}           # Tracks pump states and which pumps affect which zones
+valves_tracking_table = {}          # Tracks valve states and which valves affect which zones
+sensors_tracking_table = {}         # Tracks sensor states and which sensors affect which zones
+zones_table = {}                    # Translates zones to pumps, valves and sensors
+
+#################################
+# Constants / Constant variables
+###############################
+
+# Maintenance times (in minutes)
+default_minimum_zone_circulation_time = 10        # Minimum amount of time that a zone needs circulation to stay open/active
+default_minimum_zone_force_circulation_time = 10  # Minimum amount of time that a zone needs full circulation (pump on open zone without other open zones) to stay open/active
+
+
+###########################
+# Generic Helper functions
+#########################
+
+def send_output(output_type, output_text, indent=0):
+	"""
+	Output to console (or webpage, or mmqt message, or other)
+	"""
+	# No specials needed for output_type ["ERROR"]
+	if output_type in ["DEBUG", "INFO", "WARNING"]:
+		output_type = output_type[0:1]
+	indent_spaces=""
+	for i in range(0,indent):
+		indent_spaces += " "
+	print(str(output_type) + ": " + indent_spaces + str(output_text))
+
+
+def parse_config(my_controller_name):
+	run_as_central_controller = False
+	try:
+		config = configparser.RawConfigParser()
+		# TODO: get list of data files from this file
+		config.read(slimat_config_file)
+		if "Roles" in config.sections():
+			if "Central Controller" in config["Roles"]:
+				if my_controller_name == config["Roles"]["Central Controller"]:
+					run_as_central_controller = True
+			else:
+				send_output("WARNING", "No central controller found in config-file.", indent=1)
+		else:
+			send_output("WARNING", "No roles found in config-file.", indent=1)
+	except:
+		send_output("ERROR", "Unable to read config-file.", indent=1)
+	return run_as_central_controller
+
+
+def read_slimat_csv_data_file(config_file_name):
+	"""
+	Default reader to read a slimat csv data
+	file. Uses csv.DictReader to read the file into an array with
+	dictionaries.
+	"""
+	with open(config_file_name) as config_data_file:
+		# Just read the data through csv.DictReader and return it to caller
+		# But wrap in new list to ensure that the whole file gets read before it
+		# gets closed.
+		return list(csv.DictReader(config_data_file, delimiter=";"))
+
+
+def add_transducer_to_table(tracking_table: dict, controller: str, address: str, transducer):
+	"""
+	Adds transducer to a table in which it is tracked
+	Verifies if the transducer is already present (and verifies if it is
+	the same thing as what is being added).
+	"""
+	# Add controller level in tracking table if it is not there yet
+	if controller not in tracking_table:
+		tracking_table[controller] = {}
+	# Verify that the transducer is not yet listed (or if it is,
+	# that it is the same transducer as being added)
+	if address in tracking_table[controller]:
+		assert (tracking_table[controller][address] is transducer)
+	else:
+		tracking_table[controller][address] = transducer
+
+
+def get_transducer_from_table(tracking_table: dict, controller: str, address: str):
+	"""
+	Retrieve transducer from a table where it is tracked.
+
+	:returns: Transducer from table or None if transducer not found
+	"""
+	if controller not in tracking_table:
+		return None
+	if address not in tracking_table[controller]:
+		return None
+	return tracking_table[controller][address]
+	
+
+def get_transducers_from_table(tracking_table: dict):
+	"""
+	Retrieve transducers from dictionary with controller and address indices
+	:returns: Flattened list with only the transducers
+	"""
+	return_list = []
+	for controller, transducers in tracking_table.items():
+		for address, transducer in transducers.items():
+			return_list.append(transducer)
+	return return_list
+
+def set_property_from_line(line: dict, entry: str, property_set, property_get=None):
+	"""
+	Check if a certain entry is in a provided line, and set the
+	property using the property. If property_get is given, then
+	first check if the property is already set to a non-zero value.
+	If the property is already set, then we will not set it again.
+	:line:         Key, value dictionary relevant for the component
+	:entry:        Entry to search for in line.keys()
+	:property_set: Function to set the property. Or dictionary to
+				   add property to (Using entry as key). In case of
+				   dictionary there is a check if the property is
+				   not already present.
+	:property_get: Function to get current value of the property. Or
+				   the current value (not a function) of the
+				   property itself.
+	"""
+	# Check if the entry is in the line and that is not empty
+	if (entry not in line) or not (line[entry]):
+		return
+	if property_get is not None:
+		if callable(property_get):
+			# Retrieve the value and then check it.
+			property_get = property_get()
+		
+		if property_get:
+			# Property is set to non-zero value. Not overwriting.
+			return
+	# Property is in the line and was not set yet
+	if callable(property_set):
+		property_set(line[entry])
+	elif type(property_set) is dict:
+		# Check if property was not in the target yet
+		if entry not in property_set:
+			property_set[entry] = line[entry]
+
+
+def set_entry_value(entry, value_name, fixed_value):
+	'''
+	Set a value for some entry if the entry is missing
+	
+	entry:       The entry to extend/append
+	value_name:  Name (key) of value to set. If array, then use multi-level dictionary
+	fixed_value: Fixed value to set. Used as default if also complex value is possible
+	'''
+	if type(value_name) is list:
+		current_entry = entry
+		# Minus 1, the last element is handled differently
+		for i in range(0, len(value_name)):
+			# Current element in the array is the key we need now
+			current_key=value_name[i]
+			if i < (len(value_name) - 1):
+				# Add intermediate dictionary if required
+				if current_key not in current_entry:
+					current_entry[current_key] = {}
+				# Get current_entry element from a one level deeper dictionary
+				current_entry = current_entry[current_key]
+			else:
+				# Last element is handled differently since it needs to get the final value
+				# Using recursion to set the entry
+				set_entry_value(current_entry, current_key, fixed_value)
+
+	elif value_name not in entry:
+		# Not a list for value_name
+		entry[value_name] = fixed_value
+
+
+def get_actor_state_count(actors_list):
+	'''
+	Summarize state of actor(s)
+	
+	Returns dictionary with keys as state and value the ammount of time seen
+	'''
+	actor_states = {}
+	for actor in actors_list:
+		# Get state or use default N/A state
+		actor_state = actor.get_state()
+		# Make sure we start at a zero counter
+		set_entry_value(actor_states, actor_state, 0)
+		# Add one for this pump
+		actor_states[actor_state] += 1
+	return actor_states
+
+
+def get_average_temperature(input_sensors):
+	"""
+	Get averate temperature for a set or array of sensors that is given
+	as input.
+	"""
+	total_temp = 0
+	temps_found = 0
+	for sensor in input_sensors:
+		sensor_temp = sensor.get_temperature()
+		if sensor_temp is not None:
+			total_temp += sensor_temp
+			temps_found += 1
+	if temps_found > 0:
+		return total_temp/temps_found
+	return None
+
+def publish_message(topic, payload, indent=0):
+	global mqtt_client
+	send_output("DEBUG", "Publishing " + str(payload) + " to " + topic, indent=indent)
+	if mqtt_client is not None:
+		mqtt_client.publish(topic, payload=payload)
+
+
+def terminate_program(signal, stack_frame):
+	global mqtt_client
+	global continue_running
+	send_output("DEBUG", "Signalling termination")
+	continue_running = False
+	if mqtt_client is not None:
+		send_output("INFO", "Stopping MQTT client")
+		mqtt_client.disconnect()
+	else:
+		send_output("INFO", "No MQTT Client found")
+		
+def write_html_output(body_text, indent=0):
+	# TODO: switch to MQTT over websockets and cache this data as http/
+	# websocket information (or just transmit it every time there is an
+	# update)
+	
+	# TODO: Check if we want SimpleHTTPRequestHandler from https://docs.python.org/3/library/http.server.html)
+	output_title = "Scorpio Climate (Slimat) - Status"
+	html_output = "<html>\n"
+	html_output += "<head>\n"
+	html_output += "<title>" + output_title + "</title>\n"
+	html_output += "<meta http-equiv=\"refresh\" content=\"30\" />\n"
+	html_output += "</head>\n"
+	html_output += "<body>\n"
+	html_output += "<h1>" + output_title + "</h1>\n"
+	html_output += "Last update (ISO date): " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M") + "<br />\n"
+	html_output += body_text
+	html_output += "</body>\n"
+	html_output += "</html>\n"
+	output_file = open(html_status_output, "w")
+	output_file.write(html_output)
+	output_file.close()
+	send_output("INFO", "Written status to " + html_status_output, indent=indent)
+
+####################
+# Class definitions
+##################
+# TODO: Switch to classes (and non-global variables)
+# TODO: Generate Class documentation from Python code
+# TODO: Get GIT-archive below code
+# TODO: Setup CI-tests (or initially just local tests) for modifications
+
+class HeatingSystemComponent:
+	"""
+	Base class for components (Zones, Circuits, Valves, Pumps, etc) in
+	the heating system.
+	
+	Base class handles common functionality like state updates and
+	guarding the state machines.
+	"""
+	def __init__(self, initial_state: str = "uncontrolled"):
+		# Default state for almost any component is uncontrolled
+		self.current_state = initial_state
+	
+	def get_state(self):
+		return self.current_state
+		
+	def get_name(self):
+		return "Unknown Component"
+	
+	def set_state(self, new_state: str):
+		"""
+		Function that sets the new state and that verifies that states
+		for the system are in the set of allowed states.
+		"""
+		# Set state update and notify on DEBUG for state-updates
+		if new_state != self.current_state:
+			send_output("DEBUG", self.get_name() + ": state: " +
+				self.current_state + " => " + new_state)
+			self.current_state = new_state
+		
+	def allowed_states(self):
+		return set(["uncontrolled"])
+	
+	def update_state(self):
+		"""
+		Function that verifies with internal parameters and related
+		system-components if the current state should be updated.
+		
+		:return: True if related components need to be updated as well
+		"""
+		return False
+
+
+class Connector:
+	"""
+	Default connector class.
+	"""	
+	def __init__(self):
+		# List of topics responded to (and targets to forward to)
+		self.topics_routing = {}
+
+	def subscribe_topic(self, topic: str, target):
+		if topic not in self.topics_routing:
+			self.topics_routing[topic] = set([])
+		self.topics_routing[topic].add(target)
+
+	def subscribe_topics(self, topics: list, target):
+		for topic in topics:
+			self.subscribe_topic(topic, target)
+
+	def on_message(self, topic, payload):
+		"""
+		Forward the message to the subscribed receivers
+		"""
+		global continue_running
+		try:
+			if isinstance(payload, (bytes, bytearray)):
+				payload = str(payload.decode())
+		
+			send_output("INFO", "Received: " + topic + "(" + payload+ ")")
+			if topic in self.topics_routing:
+				topics = self.topics_routing[topic]
+				for target in topics:
+					target.on_message(topic, payload)
+		except Exception:
+			traceback.print_exc()
+			send_output("ERROR", "Fatal exception, terminating program")
+			continue_running = False
+
+	def publish_message(self, topic:str, payload:str):
+		send_output("INFO", "Sending: " + topic + "(" + payload+ ")")
+
+	def run_control_loop(self, blocking_time = 1):
+		pass
+
+class ConnectorMQTT (Connector):
+	def __init__(self, mqtt_client):
+		super().__init__()
+		self.mqtt_client = mqtt_client
+		self.mqtt_is_connected = False
+		self.mqtt_client.on_connect = self.on_connect
+		self.mqtt_client.on_disconnect = self.on_disconnect
+		self.mqtt_client.on_message = self.on_mqtt_message
+
+	def subscribe_topic(self, topic:str, target):
+		super().subscribe_topic(topic, target)
+		if self.is_connected():
+			mqtt_client.subscribe(topic)
+
+	def publish_message(self, topic, payload):
+		super().publish_message(topic, payload)
+		self.mqtt_client.publish(topic, payload=payload)
+
+	def run_control_loop(self, blocking_time = 5):
+		if blocking_time < 1:
+			blocking_time = 1
+		if not self.is_connected():
+			send_output("WARNING", "No MQTT connection, reconnecting in 5 seconds")
+			time.sleep(5)
+			send_output("DEBUG", "No MQTT connection, reconnecting")
+			mqtt_client.reconnect()
+		loop_start_ts = time.time()
+		while (loop_start_ts + blocking_time) > time.time():
+			mqtt_client.loop(timeout = blocking_time)
+
+	def is_connected(self):
+		return self.mqtt_is_connected
+
+	def on_connect(self, client, userdata, flags, result_code):
+		global continue_running
+		try:
+			self.mqtt_is_connected = True
+			for topic, targets in (self.topics_routing).items():
+				mqtt_client.subscribe(topic)
+		except:
+			traceback.print_exc()
+			send_output("ERROR", "Fatal exception in on_connect, terminating program")
+			continue_running = False
+			
+	def on_mqtt_message(self, client, userdata, msg):
+		global continue_running
+		try:
+			self.on_message(msg.topic, msg.payload)
+		except:
+			traceback.print_exc()
+			send_output("ERROR", "Fatal exception in on_mqtt_message, terminating program")
+			continue_running = False
+
+	def on_disconnect(self, client, userdata, rc):
+		global continue_running
+		try:
+			self.mqtt_is_connected = False
+		except:
+			traceback.print_exc()
+			send_output("ERROR", "Fatal exception in on_disconnect, terminating program")
+			continue_running = False
+
+class ConnectorTest (Connector):
+	def __init__(self):
+		super().__init__()
+		self.auto_responders = {}
+		self.regular_inputs = {}
+		self.received_responses = {}
+		self.regular_countdown = 0
+		
+	def add_response(self, request_topic, request_payload, response_topic, response_payload):
+		"""
+		Sets automatic response for some input message
+		"""
+		request_payload = str(request_payload)
+		response_payload = str(response_payload)
+		
+		if request_topic not in self.auto_responders:
+			self.auto_responders[request_topic] = {}
+		if request_payload not in self.auto_responders[request_topic]:
+			self.auto_responders[request_topic][request_payload] = {}
+		self.auto_responders[request_topic][request_payload][response_topic] = response_payload
+
+	def set_regular_input(self, response_topic, response_payload):
+		"""
+		Sets regular input for some input message
+		"""
+		self.regular_inputs[response_topic] = response_payload
+
+	def publish_message(self, topic, payload):
+		super().publish_message(topic, payload)
+		# Check if we have an autoresponder, and if so, then prepare response
+		if topic in self.auto_responders:
+			if payload in self.auto_responders[topic]:
+				for response_topic, response_payload in ((self.auto_responders)[topic][payload]).items():
+					self.received_responses[response_topic] = response_payload
+
+	def run_control_loop(self, blocking_time=0):
+		# Inject sensor/regular readings from within test (but only once every 10 runs)
+		self.regular_countdown -= 1
+		if self.regular_countdown <= 0:
+			for topic, payload in self.regular_inputs.items():
+				self.received_responses[topic] = payload
+			self.regular_countdown = 10
+		# Process all responses received since last loop (and clear them)
+		for topic, payload in (self.received_responses).items():
+			self.on_message(topic, payload)
+		self.received_responses = {}
+		
+		# Perform sleep to block the requested amount of time
+		if blocking_time > 0:
+			time.sleep(blocking_time)
+
+
+class Transducer(HeatingSystemComponent):
+	"""
+	Generic super/parent class for functionality common to sensors and
+	actors (valves, pumps).
+
+	A transducer is normally connected to a local controller that
+	the actual local control of the sensor or actor.
+	
+	The identifier for a local controller can be an actual network-host,
+	but it can also refer to a network with globally unique addresses
+	like one-wire. Network hosts that have a local controller and also
+	handle one-wire will accept and	transmit for both their local name
+	and the global virtual network.
+	
+	If the local controller is a network like one-wire, then the actual
+	local control will be performed by the host that the one-wire device
+	is connected to.
+	"""
+	
+	# Minimum amount of time (in seconds) before we send exactly the
+	# same instruction again to a transducer-controller
+	send_grace_time = 1
+	
+	def in_config_line(name_prefix: str, config_line = None):
+		"""
+		Static method.
+		Checks if a certain transducer is in the given config line by
+		checking that non-zero controller and address are given
+
+		:name_prefix: Identifier in config-line, for example Valve, Pump
+		              or Supply-Sensor.
+		:config_line: Config line to check
+		"""
+		return (config_line is not None) and \
+			((name_prefix + "-Controller") in config_line) and \
+			((name_prefix + "-Address")    in config_line) and \
+			(config_line[name_prefix + "-Controller"] != "") and \
+			(config_line[name_prefix + "-Address"]    != "")
+	
+	def __init__(self, controller, address):
+		"""
+		Default initializer
+		
+		:param controller: The controller that performs local control
+		                   for this transducer.
+		:param address:    Address or other id that identifies the
+		                   transducer on a local controller. Should be
+		                   unique to local controller.
+		"""
+		super().__init__()
+		
+		self.controller = controller
+		self.address = address
+		
+		# Time when we last had contact with the transducer (controller)
+		self.last_status = None
+		self.last_contact = 0
+		
+		# Last instruction we sent and timestamp when that was
+		self.instruction_sent = None
+		self.instruction_sent_ts = 0
+		
+		self.circuits_served = set([])
+		
+		self.connector = None
+
+	def add_served_circuit(self, circuit: HeatingSystemComponent):
+		self.circuits_served.add(circuit)
+		
+	def get_circuits_served(self):
+		return self.circuits_served
+
+	def extend_from_config_line(self, config_line: dict):
+		"""
+		Load additional data for this transducer from the config_line
+		"""
+		pass
+
+	def get_transducer_type(self):
+		"""
+		Get the type of this transducer as is used in MQTT communication
+		"""
+		return "unknown"
+		
+	def get_last_contact(self):
+		"""
+		Get the timestamp of last contact with the transducer
+		"""
+		return self.last_contact
+
+	def get_controller(self):
+		"""
+		Get the local controller name this transducer
+		"""
+		return self.controller
+	
+	def get_address(self):
+		"""
+		Get the address/name/id on the local controller for this
+		transducer
+		"""
+		return self.address
+		
+	def get_name(self):
+		return self.get_controller() + "/" + self.get_address()
+		
+	def set_status(self, remote_status: str):
+		"""
+		Sets the status as received from the remote local controller
+		"""
+		self.last_status = remote_status
+
+	def set_connector(self, connector: Connector):
+		self.connector = connector
+		if connector is not None:
+			connector.subscribe_topics(self.get_mqtt_subscribe_topics(), self)
+		
+	def send_instruction(self, instruction: str):
+		"""
+		Sends an (set) instruction to the actor
+		"""
+		now = time.time()
+		if (instruction != self.instruction_sent) or \
+				((self.instruction_sent_ts + Transducer.send_grace_time) < now):
+			mqtt_topic = "" + self.get_transducer_type() + "/" + \
+				self.get_controller() + "/" + self.get_address() + "/set"
+
+			# Send the instruction over the connector
+			if self.connector:
+				self.connector.publish_message(mqtt_topic, instruction)
+		
+			# Track the last instruction we sent and its content
+			self.instruction_sent = instruction
+			self.instruction_sent_ts = now
+		
+	def on_message(self, topic: str, payload: str):
+		"""
+		Handler for transducer when receiving mqtt message
+		"""
+		# Update last contact moment
+		self.last_contact = time.time()
+
+		topic_parts = topic.split("/")
+		if len(topic_parts) > 3 and topic_parts[3] == "status":
+			self.set_status(payload)
+
+	def get_mqtt_subscribe_topics(self):
+		"""
+		Get the topics to subscribe to to receive all relevant
+		information for this transducer
+		
+		:returns: a list of topics to subscribe to
+		"""
+		return []
+
+
+class Actor(Transducer):
+	def __init__(self, controller, address):
+		"""
+		Default initializer, see base-class for controller and address 
+		parameter descriptions.
+		"""
+		super().__init__(controller, address)
+		
+		# List of circuits that the tracked actor belongs to
+		self.circuits = []
+		
+		# Last status that we received from the actor
+		self.last_status = None
+		
+	def extend_from_config_line(self, config_line: dict):
+		super().extend_from_config_line(config_line)
+
+	def get_mqtt_subscribe_topics(self):
+		"""
+		Get the topics to subscribe to to receive all relevant
+		information for this transducer
+		
+		:returns: a list of topics to subscribe to
+		"""
+		topics = super().get_mqtt_subscribe_topics()
+		topics.append(
+			"" + self.get_transducer_type() + "/" +
+				self.get_controller() + "/" + self.get_address() +
+				"/status")
+		topics.append(
+			"" + self.get_transducer_type() + "/" +
+				self.get_controller() + "/" + self.get_address() +
+				"/health")
+		return topics
+
+	def status_update(new_status: str):
+		"""
+		Receive an update of the status of this actor
+		"""
+		self.last_status = new_status
+
+
+class ValveType():
+	# Default duration for opening or closing (in seconds), if nothing was given.
+	default_transition_duration = (10 * 60)
+	
+	# Database with types
+	valve_types = {}
+	
+	def __init__(self, type_name:str, default_state: str):
+		self.name = type_name
+		assert(default_state in ["NO", "NC"])
+		self.default_state = default_state
+		self.close_duration = None
+		self.open_duration = None
+		
+	def set_open_duration(self, duration):
+		if duration != "":
+			self.open_duration = int(duration)
+		
+	def set_close_duration(self, duration):
+		if duration != "":
+			self.close_duration = int(duration)
+			
+	def extend_from_config_line(self, config_line: str):
+		set_property_from_line(config_line, 'Valve-Open-Duration',
+			self.set_open_duration)
+		set_property_from_line(config_line, 'Valve-Close-Duration',
+			self.set_close_duration)
+	
+	def get_name(self):
+		return self.name
+		
+	def get_default_state(self):
+		return self.default_state
+
+
+class Valve(Actor):
+	"""
+	Valve that is used in a heating or cooling circuit
+	"""
+
+	def allowed_states(self):
+		"""
+		Valve control states
+		Open Sent:     Sent request to open, waiting for confirmation
+		Opened:        Opened (confirmed)
+		Close Sent:    Sent request to close, waiting for confirmation
+		Closed:        Closed (confirmed
+		Release Sent:  Sent release, valve can perform maintenance
+		Released:      Valve released from main controller (power save
+		               or maintenance)
+		Uncontrolled:  Not currently under control from controller
+
+		Valve open requests get priority above valve close requests.
+		So active service gets prioritized above blocking actions.
+
+		Maintenance can be done by local controller when released
+		(Maybe also on other transitions?)
+		"""
+		return set([
+			"open_sent",
+			"opened",
+			"close_sent",
+			"closed",
+			"release_sent",
+			"released",
+			"uncontrolled"
+		])
+	
+	def __init__(self, controller: str, address: str, valve_type: ValveType):
+		"""
+		Default initializer, see base-class for controller and address 
+		parameter descriptions.
+		"""
+		super().__init__(controller, address)
+		self.valve_type = valve_type
+		
+	def get_type(self):
+		"""
+		Get the type object for this valve
+		"""
+		return this.valve_type
+			
+	def get_transducer_type(self):
+		return "valve"
+
+	def extend_from_config_line(self, config_line: dict):
+		super().extend_from_config_line(config_line)
+		if config_line is None:
+			return
+			
+		# Extend type with information if any available
+		self.valve_type.extend_from_config_line(config_line)
+				
+	def set_status(self, remote_status: str):
+		super().set_status(remote_status)
+		
+		if (remote_status == "closed") and (self.get_state() in ["close_sent", "closed"]):
+			self.set_state("closed")
+		elif (remote_status == "opened") and (self.get_state() in ["open_sent", "opened"]):
+			self.set_state("opened")
+		elif (remote_status == "released") and (self.get_state() in ["release_sent", "released"]):
+			self.set_state("released")
+		elif remote_status == "uncontrolled":
+			self.set_state("uncontrolled")
+		else:
+			send_output("WARNING", "Unexpected valve status " + str(remote_status) + " for " + self.get_name())
+			self.set_state("uncontrolled")
+			
+	def update_state(self):
+		"""
+		Update valve state based on connected components and propagate
+		to connected circuits
+
+		Valve goes to open when any circuit requests it to be open.
+		Valve goes to closed when any circuit requests it closed (and
+		none requests it to be open).
+		Valve goes to released (maintenance) when no zone request
+		anything.
+		"""
+		prev_state = self.get_state()
+		
+		# Track if we have any requests to change the valve
+		do_open = False
+		do_close = False
+	
+		#TODO: Maintenance modes here
+
+		circuits_served = self.get_circuits_served()
+		if len(circuits_served) < 1:
+			send_output("WARNING", "Valve " + self.get_name() +
+				" does not serve any circuit.")
+
+		# Determine desired valve state based on zones serviced
+		for circuit in circuits_served:
+			if circuit.get_state() in ["circulating", "circulate_valves",
+					"stop_pumps", "uncontrolled"]:
+				do_open = True;
+			elif circuit.get_state() in ["stop_close_valves", "stop_valves_closed"]:
+				do_close = True
+			elif circuit.get_state() in ["stopped_pumps"]:
+				pass
+			else:
+				send_output("ERROR", "unknown circuit " + circuit.get_name() + " state " + circuit.get_state() +
+					", opening valve " + self.get_name())
+				do_open = True
+	
+		if do_open:
+			if self.get_state() != "opened":
+				self.send_instruction("open")
+				self.set_state("open_sent")
+		elif do_close:
+			if self.get_state() != "closed":
+				self.send_instruction("close")
+				self.set_state("close_sent")
+		else:
+			if self.get_state() != "released":
+				self.send_instruction("release")
+				self.set_state("release_sent")
+
+		# If the state changed, and we are not in a moving state, then inform zones that they can do something with this state
+		# The state already matches all serviced zones, this was checked above.
+		return ((prev_state != self.get_state()) and (self.get_state() not in [ "open_sent", "close_sent", "release_sent" ]))
+
+
+class Pump(Actor):
+	"""
+	Pump that is used for heating or cooling
+	"""
+
+	def allowed_states(self):
+		"""
+		Pump control states
+		Pump Sent:     Sent request to pump, waiting for confirmation
+		Pumping:       Pumping (confirmed)
+		Stop Sent:     Sent request to stop, waiting for confirmation
+		Stopped_idle:  Stopped (confirmed), not needed for any zone
+		Stopped_busy:  Stopped (confirmed), but one of the zones requires pumping (while another one blocks starting)
+		Uncontrolled:  Not currently under control from controller
+		
+		Maintain Sent: Sent maintain
+		Maintaining:   Doing maintenance (confirmed)
+		"""
+		return set([
+			"pump_sent",
+			"pumping",
+			"stop_sent",
+			"stopped_idle",
+			"stopped_busy",
+			"uncontrolled"
+		])
+	
+	def __init__(self, controller, address):
+		"""
+		Default initializer, see base-class for controller and address 
+		parameter descriptions.
+		"""
+		super().__init__(controller, address)
+		
+	def get_transducer_type(self):
+		return "pump"
+		
+	def extend_from_config_line(self, config_line: str):
+		super().extend_from_config_line(config_line)
+
+	def set_status(self, remote_status: str):
+		super().set_status(remote_status)
+		if remote_status == "stopped" and self.get_state() in ["stop_sent", "stopped_idle", "stopped_busy"]:
+			# Only go from sent to idle. Otherwise keep in existing idle state.
+			if self.get_state() in ["stop_sent"]:
+				self.set_state("stopped_idle")
+		elif remote_status == "pumping" and self.get_state() in ["pump_sent", "pumping"]:
+			self.set_state("pumping")
+		else:
+			send_output("WARNING", "Unexpected pump state " + remote_status + " for " + self.get_name())
+			self.set_state("uncontrolled")
+
+	def update_state(self):
+		"""
+		Update pump state and propagate update to connected components
+		
+		Pump will stop if any zone blocks pumping
+		Pump will pump when any zone requires pumping and all support it
+		Pump will stop if no zones request any pumping
+		
+		Returns true if we have a status change that is relevant for zones
+		"""		
+
+		prev_state = self.get_state()
+
+		# Default actions for pumps are to do nothing
+		do_pump = False
+		do_stop = False
+		prep_pump = False
+		
+		circuits_served = self.get_circuits_served()
+		if len(circuits_served) < 1:
+			send_output("WARNING", "Pump " + self.get_name() +
+				" does not serve any circuit.")
+
+		# Determine desired valve state based on zones serviced
+		for circuit in circuits_served:
+			if circuit.get_state() in ["circulating"]:
+				# Those states require active pumping
+				do_pump = True
+			elif circuit.get_state() in ["circulate_valves"]:
+				# Those states cannot handle active pumping yet, but will
+				# request pumping soon and are okay with other zones doing
+				# active pumping already
+				prep_pump = True
+			elif circuit.get_state() in ["stop_valves_closed", "stop_pumps", "stop_close_valves"]:
+				# Those states cannot handle active pumping, but are okay
+				# with other zones doing active pumping.
+				pass
+			elif circuit.get_state() in ["stopped_pumps", "uncontrolled"]:
+				# Those states require pumps to be stopped
+				do_stop = True
+			else:
+				send_output("ERROR", "unknown zone " + zone.get_name() +
+					" state " + zone.get_state() + ", stopping pump " +
+					self.get_name())
+				# Error conditions require pumps to be stopped (for safety)
+				do_stop = True
+
+		if do_stop or not do_pump:
+			if self.get_state() not in ["stopped_idle", "stopped_busy"]:
+				self.send_instruction("stop")
+				self.set_state("stop_sent")
+			elif (self.get_state() == "stopped_idle") and (do_pump or prep_pump):
+				send_output("DEBUG", "pump " + self.get_name() + 
+					" circulation desired, but currently blocked")
+				self.set_state("stopped_busy")
+			elif (self.get_state() == "stopped_busy") and not (do_pump or prep_pump):
+				send_output("DEBUG", "pump " + self.get_name() +
+					" circulation no longer required")
+				self.set_state("stopped_idle")
+		else:
+			if self.get_state() not in ["pumping"]:
+				self.send_instruction("pump")
+				self.set_state("pump_sent")
+
+		# Update zones when we are in a stable state (stopped or pumping, not transitioning to those)
+		# and only if the state changed compared to last time
+		return (self.get_state() not in ["pump_sent", "stop_sent"]) and (prev_state != self.get_state())
+
+
+class Sensor(Transducer):
+	# TODO: also add function for reporting unknown sensors
+	def __init__(self, controller: str, address: str):
+		"""
+		Default initializer, see base-class for controller and address 
+		parameter descriptions.
+		"""
+		super().__init__(controller, address)
+		self.temperature = None
+		
+	def get_transducer_type(self):
+		return "sensor"
+	
+	def formatted_temp(temperature):
+		"""
+		Formats temperature for printing / string output
+		"""
+		if temperature is not None:
+			return str(round(float(temperature), 1)) + " C"
+		else:
+			return ""
+		
+	def get_mqtt_subscribe_topics(self):
+		"""
+		See super class description.
+		"""
+		topics = super().get_mqtt_subscribe_topics()
+		topics.append(
+			"" + self.get_transducer_type() + "/" +
+				self.get_controller() + "/" + self.get_address() +
+				"/temperature")
+		return topics
+		
+	def on_message(self, topic: str, payload: str):
+		# TODO: notify zones and circuits above sensor about update
+		"""
+		Handler for transducer when receiving mqtt message
+		
+		For sensors this means receiving the temperature
+		"""
+		super().on_message(topic, payload)
+		try:
+			self.temperature = float(payload)
+			send_output("DEBUG", "Temperature "+ str(self.temperature) +
+				" received for sensor " + self.get_name())
+		except:
+			send_output("ERROR", "Temperature "+ str(self.temperature) +
+				" not numeric for " + self.get_name())
+
+	def get_temperature(self):
+		return self.temperature
+		
+	def set_temperature(self):
+		self.temperature = temperature
+		
+
+class CircuitSink(HeatingSystemComponent):
+	"""
+	Helper class that identifies users of circuits (currently zones)
+	Needed as intermediate because Zone is not defined yet.
+	"""
+	
+	def __init__(self, initial_state: str = "uncontrolled"):
+		"""
+		Initializer to allow forwarding to super-class
+		"""
+		super().__init__(initial_state)
+
+	def get_desired_temperature():
+		"""
+		The desired temperature for this sink. Calculated in a sync
+		specific way.
+		:returns: Float or int indicating the desired temperature, or
+		          None if the sink has no desired temperature set.
+		"""
+		return None
+
+	def get_actual_temperature():
+		"""
+		:returns: The actual temperature for this sink (as float or
+		          int). Or returns None if no actual temperature is
+		          known for this sink.
+		"""
+		return None
+
+
+class TransducerTracker:
+	"""
+	Tracker class that tracks sensors and actors (valves and pumps)
+	"""
+	def __init__(self):
+		self.pumps_tracked = {}
+		self.valves_tracked = {}
+		self.sensors_tracked = {}
+		self.valve_types = {}
+
+	def add_transducer_to_table(tracking_table: dict, transducer: Transducer):
+		"""
+		Static function to add a transducer to a tracking table that is
+		not in the tracking	table yet.
+		
+		Uses generic basic add function
+		"""
+		add_transducer_to_table(tracking_table, transducer.get_controller(),
+			transducer.get_address(), transducer)
+		
+	def get_sensor(self, controller: str, address: str):
+		"""
+		Retrieve a specific sensor from the tracker (or create sensor
+		if it is missing)
+		"""
+		sensor = get_transducer_from_table(self.sensors_tracked, controller, address)
+		if sensor is None:
+			sensor = Sensor(controller, address)
+			TransducerTracker.add_transducer_to_table(self.sensors_tracked, sensor)
+		return sensor
+
+	def get_valve_type(self, type_name: None, default_state: None, config_line = None):
+		"""
+		Function to retrieve valve types
+		Type should either be present, or default state is required
+		
+		:type_name:     The required name of the type
+		:default_state: If given, default state NC or NO
+		:config_line:   If given, line with additional data about the type
+		"""
+		
+		# Verify/ensure that we have a type_name
+		if (type_name is None) or (type_name == ""):
+			assert('Valve-Type' in config_line)
+			type_name = config_line['Valve-Type']
+		assert(type_name is not None and type_name != "")
+		
+		# Create valve-type if we need to and add to tracker
+		valve_type = None
+		if type_name in ValveType.valve_types:
+			valve_type = ValveType.valve_types[type_name]
+		else:
+			if default_state is None:
+				assert('Valve-Default-State' in config_line)
+				default_state = config_line['Valve-Default-State'].upper()
+			valve_type = ValveType(type_name, default_state)
+			ValveType.valve_types[type_name] = valve_type
+
+		# Extend and validate that all data is consistent
+		if default_state is not None:
+			assert (valve_type.get_default_state() == default_state)
+		if config_line is not None:
+			valve_type.extend_from_config_line(config_line)
+
+		# Return the type we found
+		return valve_type
+		
+	def get_valve(self, controller: str, address: str, type_name = None, default_state = None, config_line = None):
+		valve = get_transducer_from_table(self.valves_tracked, controller, address)
+		if valve is None:
+			valve_type = self.get_valve_type(type_name, default_state, config_line = config_line)
+			valve = Valve(controller, address, valve_type)
+			TransducerTracker.add_transducer_to_table(self.valves_tracked, valve)
+		valve.extend_from_config_line(config_line)
+		return valve
+
+	def get_pump(self, controller: str, address: str, config_line = None):
+		pump = get_transducer_from_table(self.pumps_tracked, controller, address)
+		if pump is None:
+			pump = Pump(controller, address)
+			TransducerTracker.add_transducer_to_table(self.pumps_tracked, pump)
+		pump.extend_from_config_line(config_line)
+		return pump
+		
+	def get_transducers(self):
+		"""
+		Return a set with all the transducers in the tracker
+		"""
+		return set(list(
+			get_transducers_from_table(self.pumps_tracked) +
+			get_transducers_from_table(self.valves_tracked) +
+			get_transducers_from_table(self.sensors_tracked)))
+		pass
+
+
+class ClimateCircuit(HeatingSystemComponent):
+	"""
+	A circuit that provides cooling or heating to a zone.
+	
+	Belongs only to a single zone, but can share transducers (valves,
+	pumps) with other circuits.
+	"""
+
+	def allowed_states(self):
+		"""
+		Circulation states for circuit(s)
+		Circulating:        Run circulation. Keeps valves open and
+		                    start/run pumps in circuit
+		Circulate_valves:   Start circulation by first opening valves.
+		                    This is the first state when/while
+		                    circulation and/or pump maintenance is
+		                    required.
+		Stop_pumps:         Start closing the circuit. First stopping
+		                    state that releases pumps to other zones or
+		                    stops pumps if no other zones use them.
+		Stop_close_valves:  Stop circulation by closing all circuit
+		                    valves that can be closed. Entered if
+		                    stopping the circuit is required while pumps
+		                    are still active for other zones.
+		Stop_valves_closed: Circuits closed. At least one valve for the
+		                    zone is closed. Moves to pumps stopped when
+		                    all pumps for the circuit are stopped (and
+		                    idle).
+		Stopped_pumps:      Circuit stopped by having all pumps stopped.
+		                    Valves released (and can perform maintenance
+		                    ).
+		Uncontrolled:       Startup state. Not under control of the
+		                    automated system (yet or circuit contains
+		                    components under manual control).
+
+		Valve maintenance is perfomed in stopped_pumps state.
+		Pump maintenance is performed in circulating state.
+		Zone maintenance is performed in circulating state.
+		"""
+		return set([
+			"circulating",
+			"circulate_valves",
+			"stop_pumps",
+			"stop_close_valves",
+			"stop_valves_closed",
+			"stopped_pumps",
+			"uncontrolled"
+		])
+	
+
+	
+	def __init__(self, zone: CircuitSink, circuit_name: str):
+		"""
+		Default initializer for a circuit
+		
+		:param zone:       Zone (object) that this circuit serves / 
+		                   belongs to.
+		:param circuit_name: String/text to identify circuit within zone.
+		                   Should be unique within zone context.
+		:param function:   Should be "heat" or "cool", depending on if
+		                   this circuit performs heating or cooling for
+		                   the zone.
+		"""
+		super().__init__()
+		self.circuit_name = circuit_name
+		# Zone this circuit belongs to
+		self.served_zone = zone
+		
+		self.pumps = set([])
+		self.valves = set([])
+		
+		self.supply_sensors = set([])
+		self.return_sensors = set([])
+		
+		# Activate delta: should always be positive, distance from setpoint at
+		# which to activate circuit. (for cooling: above setpoint, for heating:
+		# below setpoint.
+		self.activate_delta = 0.3
+
+		# Stop delta: Distance from setpoint at which to deactivate circuit.
+		# If negative, then stop the circuit before reaching the setpoint
+		# If positive, then stop the circuit after/beyond reachig the setpoint.
+		self.stop_delta = -0.1
+		
+	def add_pump(self, pump: Pump):
+		"""
+		Add a pump(tracker) to the circuit (if it was not already added)
+		"""
+		self.pumps.add(pump)
+		pump.add_served_circuit(self)
+		
+	def add_valve(self, valve: Valve):
+		"""
+		Add a valve(tracker) to the circuit (if it was not already added)
+		"""
+		self.valves.add(valve)
+		valve.add_served_circuit(self)
+		
+	def add_supply_sensor(self, sensor: Sensor):
+		self.supply_sensors.add(sensor)
+		sensor.add_served_circuit(self)
+		
+	def add_return_sensor(self, sensor: Sensor):
+		self.return_sensors.add(sensor)
+		sensor.add_served_circuit(self)
+		
+	def can_activate(self):
+		"""
+		Helper function that checks if this circuit is even able to
+		activate. At least one pump or one valve is required to exercise
+		control on the circuit. We also need an actual and desired
+		temperature on the zone to actually activate, but that is not
+		checked here.
+		"""
+		return (len(self.pumps) > 0) or (len(self.valves) > 0)
+
+	def extend_from_config_line(self, config_line: dict, transducer_tracker: \
+			TransducerTracker):
+		# Load supply and return sensors
+		if Transducer.in_config_line('Supply-Sensor', config_line):
+			self.add_supply_sensor(transducer_tracker.get_sensor(
+				config_line['Supply-Sensor-Controller'],
+				config_line['Supply-Sensor-Address']))
+		if Transducer.in_config_line('Return-Sensor', config_line):
+			self.add_return_sensor(transducer_tracker.get_sensor(
+				config_line['Return-Sensor-Controller'],
+				config_line['Return-Sensor-Address']))
+		if Transducer.in_config_line('Valve', config_line):
+			self.add_valve(transducer_tracker.get_valve(
+				config_line['Valve-Controller'],
+				config_line['Valve-Address'], config_line=config_line))
+		if Transducer.in_config_line('Pump', config_line):
+			self.add_pump(transducer_tracker.get_pump(
+				config_line['Pump-Controller'],
+				config_line['Pump-Address'], config_line=config_line))
+		pass
+	
+	def get_activate_temperature(self):
+		return None
+	
+	def get_stop_temperature(self):
+		return None
+
+	def get_return_temperature(self):
+		return get_average_temperature(self.return_sensors)
+		
+	def get_supply_temperature(self):
+		return get_average_temperature(self.supply_sensors)
+
+	def get_name(self):
+		return self.circuit_name
+		
+	def get_valves(self):
+		return self.valves
+
+	def get_pumps(self):
+		return self.pumps
+		
+	def get_function(self):
+		return "unknown"
+		
+	def should_activate(self):
+		"""
+		Helper function that indicates if this circuit should activate
+		"""
+		# Only subclasses HeatingCircuit and CoolingCircuit activate in
+		# certain ranges.
+		return False
+		
+	def should_stop(self):
+		"""
+		Helper function that indicates if this circuit should stop
+		circulation
+		"""
+		return True
+		
+	def update_state(self):
+		"""
+		Process update for circuit
+		:return: True if actors should be updated
+		"""
+		do_notify_actors = False
+		
+		prev_state = self.get_state()
+
+		# Check stop before activate. Stop takes precedence.
+		if self.should_stop():
+			if self.get_state() in ["circulating", "circulate_valves", "uncontrolled"]:
+				send_output("INFO", "Stopping circulation for " + self.get_name())
+				self.set_state("stop_pumps")
+		elif self.should_activate():
+			if self.get_state() not in ["circulating", "circulate_valves"]:
+				send_output("INFO", "Starting circulation for " + self.get_name())
+				self.set_state("circulate_valves")
+
+		# Direction (stop or activate) set. Now check for movements within stop or active
+		if self.get_state() in ["stop_pumps", "stopped_pumps", "stop_close_valves", "stop_valves_closed"]:
+			# Pump can be released when either:
+			# - The pump is stopped
+			# - The pump is pumping and another circuit is actively using the pump
+			
+			# Initialize with true if the circuit controls pumps
+			# If the circuit doesn't control pumps, then it cannot stop them
+			all_pumps_stopped = (len(self.pumps) > 0)
+			
+			# Initialize with true, also valid if the circuit has no own pumps
+			all_pumps_released = True
+			
+			for pump in self.pumps:
+				if pump.get_state() in [ "stopped_idle" ]:
+					# This pump doesn't require attention because it is stopped and will remain stopped for now
+					pass
+				elif pump.get_state() in [ "stopped_busy" ]:
+					# This pump will soon be active for some other zone
+					# We can consider it to be released, but we cannot
+					# consider it to be stopped because it will be active soon.
+					all_pumps_stopped = False
+				else:
+					# At least one pump is not stopped yet
+					all_pumps_stopped = False
+
+					# Check if there are other zones that handle this pump
+					this_pump_release = False
+					for other_circuit in pump.get_circuits_served():
+						# No need to check for self, this circuit is not circulating
+						if other_circuit.get_state() in ["circulating"]:
+							send_output("INFO", "Circuit " + self.get_name() +
+								" releases pump " + pump.get_name() +
+								" (used by " + other_circuit.get_name() + ")")
+							this_pump_release = True
+
+					if not this_pump_release:
+						all_pumps_released = False
+						send_output("INFO", "Circuit " + self.get_name() +
+							" waiting for pump " + pump.get_name() +
+							" to stop.")
+			
+			# Set next state based on pump states
+			# If all pumps are stopped, then use stop_pumps_stopped (and allow valves to go to release)
+			# If a pump activates, then send to stop_close_valves (and only start pumping when zones are in stop_pumps_stopped)
+
+			if all_pumps_stopped:
+				# Stopped pumps is the best (low power) state we can have.
+				self.set_state("stopped_pumps")
+			elif all_pumps_released:
+				# If pumps are released, but not stopped, then close valves
+				if self.get_state() != "stop_valves_closed":
+					self.set_state("stop_close_valves")
+			else:
+				send_output("DEBUG", "Not (yet) able to release pumps for " + self.get_name())
+				self.set_state("stop_pumps")
+
+		if self.get_state() == "stop_close_valves":
+			# The statements just before here checked that all pumps are stopped
+			# Circuit/zone goes to closed when:
+			# - At least 1 valve of the circuit is closed
+			any_valve_closed = False
+			for valve in self.valves:
+				if valve.get_state() == "closed":
+					send_output("INFO", "Circuit " + self.get_name() + " closed; valve " + valve.get_name() + " is closed")
+					self.set_state("stop_valves_closed")
+
+		if self.get_state() == "circulate_valves":
+			# check if all valves are open
+			closed_valves_found = False
+			for valve in self.valves:
+				if valve.get_state() != "opened":
+					closed_valves_found = True
+					send_output("INFO", "Waiting for valve " + valve.get_name())
+					if valve.get_state() != "sent_open":
+						do_notify_actors = True
+			if not closed_valves_found:
+				send_output("INFO", "All valves open. Circulating")
+				self.set_state("circulating")
+				for pump in self.pumps:
+					if pump.get_state() not in ["pumping"]:
+						do_notify_actors = True
+
+		# If the zone state changed, then verify if pumps and valves need to change
+		return (prev_state != self.get_state()) or do_notify_actors
+
+class HeatingCircuit(ClimateCircuit):
+	def __init__(self, zone: CircuitSink, circuit_name: str):
+		super().__init__(zone, circuit_name)
+		self.stop_delta = self.stop_delta;
+		self.activate_delta = self.activate_delta;
+
+	def get_function(self):
+		return "heat"
+		
+	def get_activate_temperature(self):
+		zone_temp = self.served_zone.get_desired_temperature()
+		act_delta = self.activate_delta
+		if (zone_temp is not None) and (act_delta is not None):
+			return zone_temp - act_delta
+		return None
+	
+	def get_stop_temperature(self):
+		zone_temp = self.served_zone.get_desired_temperature()
+		stop_delta = self.stop_delta
+		if (zone_temp is not None) and (stop_delta is not None):
+			return zone_temp + stop_delta
+		return None
+		
+	def should_activate(self):
+		zone_temp = self.served_zone.get_actual_temperature()
+		act_temp = self.get_activate_temperature()
+		if zone_temp is None or act_temp is None:
+			# Don't activate if we have insufficient data
+			return False
+		return zone_temp <= act_temp
+
+	def should_stop(self):
+		zone_temp = self.served_zone.get_actual_temperature()
+		stop_temp = self.get_stop_temperature()
+		if zone_temp is None or stop_temp is None:
+			# Do stop if we have insufficient data
+			return True
+		return zone_temp >= stop_temp
+
+
+class CoolingCircuit(ClimateCircuit):
+	def __init__(self, zone: CircuitSink, circuit_name: str):
+		super().__init__(zone, circuit_name)
+		
+	def get_function(self):
+		return "cool"
+		
+	def get_activate_temperature(self):
+		zone_temp = self.served_zone.get_desired_temperature()
+		act_delta = self.activate_delta
+		if (zone_temp is not None) and (act_delta is not None):
+			return zone_temp + act_delta + 20;
+		return None
+	
+	def get_stop_temperature(self):
+		zone_temp = self.served_zone.get_desired_temperature()
+		stop_delta = self.stop_delta
+		if (zone_temp is not None) and (stop_delta is not None):
+			return zone_temp - stop_delta + 20;
+		return None
+		
+	def should_activate(self):
+		zone_temp = self.served_zone.get_actual_temperature()
+		act_temp = self.get_activate_temperature()
+		if zone_temp is None or act_temp is None:
+			# Don't activate if we have insufficient data
+			return False
+		return zone_temp >= act_temp
+
+	def should_stop(self):
+		zone_temp = self.served_zone.get_actual_temperature()
+		stop_temp = self.get_stop_temperature()
+		if zone_temp is None or stop_temp is None:
+			# Do stop if we have insufficient data
+			return True
+		return zone_temp <= stop_temp
+
+
+class Zone(CircuitSink):
+	"""
+	A zone (room, or part of a room in a building) that can be heated
+	and/or cooled.
+	"""
+	def __init__(self, zone_name: str):
+		"""
+		:param zone_name: unique string/text identifier for this zone
+		"""
+		# Set active as inital state. Zones don't have a lot of state yet
+		super().__init__()
+		
+		self.name = zone_name
+		self.zone_code = None
+		self.desired_temp = None
+
+		# Links to circuits and sensors used by this zone
+		self.circuits = {}
+		self.sensors = set([])
+		
+	def add_sensor(self, sensor: Sensor):
+		"""
+		Add sensor to this zone (measuring room/zone temperatures)
+		"""
+		self.sensors.add(sensor)
+		
+	def get_circuit(self, circuit_name: str, circuit_function=None):
+		"""
+		Get a specific circuit from this zone
+		
+		:circuit_name:     Name of the circuit to retrieve
+		:circuit_function: If this parameter is given, then the circuit
+		                   will be created if the function is known.
+		:returns:          The requested circuit, or None if it is not
+		                   present
+		"""
+		# If no name given, then return empty
+		if circuit_name == "":
+			return None
+		
+		# Return the circuit if known
+		if circuit_name in self.circuits:
+			return self.circuits[circuit_name]
+		# Otherwise try to create it based on function
+		circuit = None
+		if circuit_function == "heat":
+			circuit = HeatingCircuit(self, circuit_name)
+		elif circuit_function == "cool":
+			circuit = CoolingCircuit(self, circuit_name)
+		# If we could create it, then return it
+		if circuit is not None:
+			self.circuits[circuit.get_name()] = circuit
+		# This returns the circuit, or None if it was not created
+		return circuit
+		
+	def get_circuits(self):
+		"""
+		Get all the circuits in this zone
+		:returns: An array with all circuits in the zone
+		"""
+		return sorted(self.circuits.values(), key=lambda circuit: circuit.get_name())
+		
+	def get_code(self):
+		"""
+		Returns id for the zone (empty string if no id is set)
+		"""
+		if self.zone_code is None:
+			return ""
+		return self.zone_code
+		
+	def set_code(self, zone_code: str):
+		"""
+		Set the name for this zone
+		"""
+		self.zone_code = zone_code
+		
+	def get_name(self):
+		"""
+		Retrieve name for this zone.
+		"""
+		return self.name
+		
+	def set_desired_temperature(self, desired_temp):
+		try:
+			self.desired_temp = float(desired_temp)
+		except:
+			self.desired_temp = None
+		
+	def get_desired_temperature(self):
+		return self.desired_temp
+		
+	def get_actual_temperature(self):
+		"""
+		Returns the average temperature from the available sensor
+		measurements. Or None if no temperature is available.
+		"""
+		return get_average_temperature(self.sensors)
+		
+	def get_last_temperature_update_delta(self):
+		"""
+		Get the amount of seconds between now and the last update
+		"""
+		time_now = time.time()
+		earliest_last_contact = time_now
+		for sensor in self.sensors:
+			sens_last_contact = sensor.get_last_contact()
+			if sens_last_contact < earliest_last_contact:
+				earliest_last_contact = sens_last_contact
+		return time_now - earliest_last_contact
+
+	def extend_from_config_line(
+		self, config_line: str, transducer_tracker: TransducerTracker):
+		"""
+		Extend this class with additional information from config_line.
+		
+		:config_line:        Dictionary with key => value pairs
+		                     describing the zone
+		:transducer_tracker: Tracker that tracks all sensors, pumps and
+		                     valves in the system. Zone and circuits
+		                     should get transducers from this tracker
+		                     and add any new transducer that they
+		                     encounter to this tracker.
+		"""
+		set_property_from_line(config_line, "Zone-Code", self.set_code,
+			self.zone_code)
+		set_property_from_line(config_line, "Desired-Temp",
+			self.set_desired_temperature, self.get_desired_temperature)
+
+		# TODO: add 0, 1, 2, etc Sensors, also for circuits, valves, etc
+		if Transducer.in_config_line('Room-Sensor', config_line):
+			self.add_sensor(transducer_tracker.get_sensor(
+				config_line["Room-Sensor-Controller"],
+				config_line["Room-Sensor-Address"]))
+		
+		if "Circuit-Function" in config_line and "Circuit-Name" in config_line:
+			circuit_function = config_line["Circuit-Function"]
+			circuit_name = config_line["Circuit-Name"]
+			extend_circuit = self.get_circuit(circuit_name, circuit_function)
+			if extend_circuit is not None:
+				# Allow circuit to be configured from config-data
+				extend_circuit.extend_from_config_line(config_line,
+					transducer_tracker)
+
+
+class HeatingSystem(HeatingSystemComponent):
+	"""
+	References to all heating system components and communication
+	components.
+	"""
+	
+	def __init__(self, my_controller_name: str):
+		# Start up in thermostat mode, because that is the mode that we
+		# usually want to run.
+		# Maybe start with valves maintenance mode? (To ensure all
+		# maintenace is done while starting up and waiting for sensors.)
+		super().__init__("thermostat")
+		self.continue_running = True
+		self.connector = None
+		self.transducer_tracker = TransducerTracker()
+		self.zones = {}
+
+	def allowed_states(self):
+		"""
+		State for control for system, zones and circuits
+		Thermostat control state is normally not reported to the outside
+		world, other states are.
+		Thermostat:         Circuit is running based on thermostat from
+		                    zone
+		Valves_Maintenance: Circuit should go to a circulation state
+		                    that allows valves to do maintenance
+		Pumps_Maintenance:  Circulate should go to circulating to allow
+		                    pumps to perform required maintenance
+		Manual Stop:        User set circuit manually to stop. Circuit
+		                    should remain in one of the stop states.
+		"""
+		return set([
+			"valves_maintenance",
+			"pump_maintenance",
+			"thermostat",
+			"manual_stop"
+		])
+
+	def set_connector(self, connector: Connector):
+		"""
+		Helper function that sets connector on all transducers known in
+		the system.
+		"""
+		if connector is not None:
+			self.connector = connector
+			for transducer in self.transducer_tracker.get_transducers():
+				transducer.set_connector(connector)
+		
+	def extend_from_config_file(self, config_file_name: str):
+		"""
+		Helper function to add a new zone or amend/extend an existing
+		zone based on loads from a config file. This method also loads
+		circuit data if it is present.
+
+		Valves and Pumps used by the zone already need to be loaded
+		before the zone using them gets loaded/extended.
+		:param config_line: Line from a configuration file containing
+		                    zone-data.
+		:returns:           The zone as was loaded/extended. Or None if
+		                    the config_line didn't contain zone data.
+		"""
+		config_data = read_slimat_csv_data_file(config_file_name)
+		for config_line in config_data:
+			if "Zone-Name" in config_line:
+				zone_name = config_line["Zone-Name"]
+				if zone_name != "":
+					zone_entry = self.get_zone(zone_name)
+					zone_entry.extend_from_config_line(config_line, self.transducer_tracker)
+		# Set connector on all newly loaded items
+		self.set_connector(self.connector)
+
+	def get_zone(self, zone_name: str):
+		"""
+		Get an existing zone or a newly created one if it didn't exist
+		yet.
+		"""
+		if zone_name not in self.zones:
+			self.zones[zone_name] = Zone(zone_name)
+		return self.zones[zone_name]
+			
+	def get_zones(self):
+		"""
+		Get all the zones in the heating system (as a sorted set)
+		"""
+		return sorted(self.zones.values(), key=lambda zone: zone.get_name())
+
+	def get_html_status_table(self):
+		"""
+		Generate a status overview table in html
+		"""
+		zone_header0 = "<th colspan=2 rowspan=2>Zone</th>"
+		zone_header1 = ""
+		temp_header0 = "<th colspan=3>Temperature</th>"
+		temp_header1 = "<th>seen</th><th>actual</th><th>desired</th>"
+		circuit_header0 = "<th colspan=10>Circuit</th>"
+		#TODO: add colors (heating: light red, cooling: light blue, stopping: purple, uncontrolled: light gray, inactive: light green)
+		circuit_header1 = "<th colspan=2>name/function</th><th colspan=2>range</th><th>supply</th><th>return</th><th>status</th><th>valves</th><th>pumps</th>"
+
+		html_output = "<table border=1>"
+		html_output += "<tr>" + zone_header0 + temp_header0 + circuit_header0 + "</tr>\n"
+		html_output += "<tr>" + zone_header1 + temp_header1 + circuit_header1 + "</tr>\n"
+		for zone in self.get_zones():
+			desired_temp = Sensor.formatted_temp(zone.get_desired_temperature())
+			actual_temp = Sensor.formatted_temp(zone.get_actual_temperature())
+			last_temp_update = int(round(float(zone.get_last_temperature_update_delta()), 0))
+			if last_temp_update <= 0 or not actual_temp:
+				last_temp_update = ""
+			elif last_temp_update <= 7200:
+				last_temp_update = str(last_temp_update) + "s"
+			else:
+				last_temp_update = ">7200s"
+			circuits = zone.get_circuits()
+			
+			# Write zone if there are circuits or when it has a desired or actual temperature
+			if len(circuits) > 0 or desired_temp or actual_temp:
+				html_output += "<tr>"
+				rowspan_text = ""
+				if len(circuits) > 1:
+					rowspan_text = " rowspan=" + str(len(circuits))
+				# Write out generic zone info on the first line
+				html_output += "<td" + rowspan_text + ">" + zone.get_code() + "</td>"
+				html_output += "<td" + rowspan_text + ">" + zone.get_name() + "</td>"
+				html_output += "<td" + rowspan_text + ' align="right">' + last_temp_update + "</td>"
+				html_output += "<td" + rowspan_text + ' align="right">' + actual_temp + "</td>"
+				html_output += "<td" + rowspan_text + ' align="right">' + desired_temp + "</td>"
+
+				if len(circuits) < 1:
+					html_output += "<td colspan=9> (no circuits) </td>"
+					html_output += "</tr>\n"
+				else:			
+					first_line = True
+					for circuit in circuits:
+						# Write tr if we need to.
+						if first_line:
+							first_line = False
+						else:
+							html_output += "<tr>"
+						html_output += "<td>" + circuit.get_name() + "</td>"
+						html_output += "<td>" + circuit.get_function() + "</td>"
+						html_output += "<td>" + Sensor.formatted_temp(circuit.get_activate_temperature()) + "</td>"
+						html_output += "<td>" + Sensor.formatted_temp(circuit.get_stop_temperature()) + "</td>"
+						html_output += "<td>" + Sensor.formatted_temp(circuit.get_supply_temperature()) + "</td>"
+						html_output += "<td>" + Sensor.formatted_temp(circuit.get_return_temperature()) + "</td>"
+						html_output += "<td>" + circuit.get_state() + "</td>"
+						html_output += "<td>"
+						for valve_state, counted in get_actor_state_count(circuit.get_valves()).items():
+							html_output += valve_state + "("+ str(counted) +") "
+						html_output += "</td>"
+						html_output += "<td>"
+						for pump_state,counted in get_actor_state_count(circuit.get_pumps()).items():
+							html_output += pump_state + "("+ str(counted) +") "
+						html_output += "</td>"
+						html_output += "</tr>\n"
+
+		html_output += "</table>\n"
+		return html_output
+
+
+	def run_control_loop(self, blocking_time=5):
+		start_ts = time.time()
+		# TODO: loop over all transducers and update if required
+		# Allow connector to run
+		update_circuits = True
+		update_actors = True
+		
+		iterations = 0
+		while (update_circuits or update_actors) and iterations < 20:
+			iterations += 1
+			if update_actors:
+				update_actors = False
+				transducers = self.transducer_tracker.get_transducers()
+				send_output("DEBUG", "Updating " + str(len(transducers)) + " actors")
+				for transducer in transducers:
+					do_update = transducer.update_state()
+					update_circuits = update_circuits or do_update
+			if update_circuits:
+				update_circuits = False
+				send_output("DEBUG", "Updating circuits")
+				for zone in self.get_zones():
+					for circuit in zone.get_circuits():
+						do_update = circuit.update_state()
+						update_actors = update_actors or do_update
+		if update_circuits or update_actors:
+			send_output("WARNING", "Breaking out of control loop while updates still present")
+		
+		if self.connector is not None:
+			self.connector.run_control_loop(blocking_time=blocking_time)
+		rem_time = start_ts + blocking_time - time.time()
+		if (rem_time > 0):
+			send_output("WARNING", "Control loop finished too soon, sleeping for " + str(rem_time) + " seconds")
+			time.sleep(rem_time)
+
+		# Write statusses when we are on the real system		
+		html_status = self.get_html_status_table()
+		if not test_mode:	
+			write_html_output(html_status)
+
+
+
+####################
+# Program Functions
+##################
+
+def process_updates(update_zones = False, update_pumps = False, update_valves = False, heating_system=None, indent=0):
+	'''
+	Common function to propagate updated states
+	'''
+	write_status = False
+	while update_zones or update_pumps or update_valves:
+		write_status = True
+		if update_zones:
+			send_output("INFO", "Updating zones", indent=indent)
+			update_zones = False
+			for zone_name, zone_data in zones_table.items():
+				if process_zone_update(zone_name, indent=indent+1):
+					send_output("INFO", "pumps and valves update triggered from zones update", indent=indent+1)
+					update_pumps = True
+					update_valves = True
+		if update_pumps:
+			send_output("INFO", "Updating pumps", indent=indent)
+			update_pumps = False
+			for pump_controller, pumps in pumps_tracking_table.items():
+				for pump_id, pump in pumps.items():
+					if process_pump_update(pump_controller, pump_id, indent=indent+1):
+						send_output("INFO", "zones update triggered from pumps update", indent=indent+1)
+						update_zones = True
+		if update_valves:
+			send_output("INFO", "Updating valves", indent=indent)
+			update_valves = False
+			for valve_controller, valves in valves_tracking_table.items():
+				for valve_id, valve in valves.items():
+					# TODO: should give parameter back to check if other updates are needed
+					if process_valve_update(valve_controller, valve_id, indent=indent+1):
+						send_output("INFO", "zones update triggered from valves update", indent=indent+1)
+						update_zones = True
+
+	old_status = write_html_status_output(indent=indent);
+	new_status = ""
+	if heating_system is not None:
+		new_status = heating_system.get_html_status_table()
+
+	if write_status:
+		write_html_output(old_status + new_status)
+
+
+def run_to_state(heating_system: HeatingSystem, gets_to_results:dict,
+		test_name="test", test_step="", timeout=30, max_iterations=100):
+	"""
+	Run test loop until a certain state is reached, or until the timeout
+	is reached.
+	
+	:param heating_system: The heating system used for testing. Prepared
+	                       with test connector if needed.
+	:param gets_to_results: Dictionary with as key status-get-functions
+	                       and value the desired state.
+	:param test_name:      Name of the running test.
+	:param test_step:      Name/Description of the running test-step
+	:param timeout:        Maximum time to wait for desired state
+	:return:               True if desired state was reached, False on
+	                       timeout.
+	"""
+	timeout_ts = time.time() + timeout
+	desired_state_reached = False
+	iteration = 0
+	
+	# Getters that are not in the desired state. Initialized for first
+	# loop iteration to some dummy value.
+	non_desireds = {"dummy": "dummy"}
+
+	while len(non_desireds) > 0 and (iteration <= max_iterations) and time.time() <= timeout_ts:
+		iteration += 1
+
+		# Check if we are in the desired state
+		non_desireds = {}
+		for getter, desired_result in gets_to_results.items():
+			actual_result = getter()
+			if desired_result != actual_result:
+				non_desireds[getter] = actual_result
+		
+		# Run control loop to get to next state
+		heating_system.run_control_loop(blocking_time=0)
+		
+	if len(non_desireds) > 0:
+		send_output("ERROR", test_name + "[" + test_step + "]: " + 
+			"Test state verification failed")
+		for getter, non_desired in non_desireds.items():
+			send_output("ERROR", test_name + "[" + test_step + "]: " +
+				getter.__name__ + ": " + str(non_desired) + " (expected: " +
+				str(gets_to_results[getter]) + ")")
+		return False
+		
+	return True
+
+
+def selftests():
+	'''
+	Perform selftests and return True if all critial testssucceeded or
+	False when one or more fatal failures occured.
+	'''
+	all_ok = True
+	
+	# TODO: fix issue found in this test (and make it blocking)
+	#selftest_timing()
+	
+	# TODO: improve tests (and code) for cooling support
+	#all_ok = all_ok and selftest_pump1()
+	#all_ok = all_ok and selftest_pump1_valve2()
+	
+	return all_ok
+	
+
+def selftest_timing():
+	'''
+	Test if the control loop is blocking for the time it needs to block
+	'''
+	start_time = time.time()
+	run_control_loop(start_time+200, blocking_time=6)
+	blocked_time = time.time() - start_time
+	if blocked_time < 5:
+		send_output("ERROR", "Selftest-timing: control_loop blocked only for " + str(blocked_time) + " seconds (while 6 expected)")
+		return False
+		
+	return True
+	
+def selftest_load():
+	"""
+	Test that tests some data-loading functions
+	"""
+	my_controller_name = "TCload"
+	test_name = "Loading selftest"
+	heating_system = HeatingSystem(my_controller_name)
+	
+	return True
+
+
+def selftest_pump1():
+	'''
+	Test for two zones, one pump, no valves
+	'''
+	
+	# Overall test variables
+	my_controller_name = "TCp1"
+	test_name = "Single pump selftest"
+	
+	# Setup system configuration for testing
+	heating_system = HeatingSystem(my_controller_name)
+	
+	zoneT1 = heating_system.get_zone("TestZone1")
+	zoneT2 = heating_system.get_zone("TestZone2")
+	
+	sensorT1 = heating_system.transducer_tracker.get_sensor(my_controller_name, "sT1")
+	zoneT1.add_sensor(sensorT1)
+	
+	sensorT2 = heating_system.transducer_tracker.get_sensor(my_controller_name, "sT2")
+	zoneT2.add_sensor(sensorT2)
+	
+	circuitT1 = zoneT1.get_circuit("TestCircuit1", "heat")
+	circuitT2 = zoneT2.get_circuit("TestCircuit2", "heat")
+	
+	pumpS = heating_system.transducer_tracker.get_pump(my_controller_name, "pumpS")
+	circuitT1.add_pump(pumpS)
+	circuitT2.add_pump(pumpS)
+
+	test_connector = ConnectorTest()
+	heating_system.set_connector(test_connector)
+
+	# Set default/correct responses
+	test_connector.add_response("pump/" + my_controller_name + "/pumpS/set", "pump", "pump/" + my_controller_name + "/pumpS/status", "pumping")
+	test_connector.add_response("pump/" + my_controller_name + "/pumpS/set", "stop", "pump/" + my_controller_name + "/pumpS/status", "stopped")
+
+	zoneT1.set_desired_temperature(20)
+	zoneT2.set_desired_temperature(20)
+
+	test_connector.set_regular_input("sensor/" + my_controller_name + "/sT1/temperature", "10")
+	test_connector.set_regular_input("sensor/" + my_controller_name + "/sT2/temperature", "10")
+	if not run_to_state(
+			heating_system,
+			{
+				circuitT1.should_activate: True,
+				circuitT1.should_stop: False,
+				circuitT1.get_state: "circulating",
+				circuitT2.should_activate: True,
+				circuitT2.should_stop: False,
+				circuitT2.get_state: "circulating",
+				pumpS.get_state: "pumping"
+			},
+			test_name=test_name,
+			test_step="Circulate below setpoint"):
+		return False
+
+	test_connector.set_regular_input("sensor/" + my_controller_name + "/sT1/temperature", "30")
+	test_connector.set_regular_input("sensor/" + my_controller_name + "/sT2/temperature", "30")
+		
+	if not run_to_state(
+			heating_system,
+			{
+				circuitT1.get_state: "stopped_pumps",
+				circuitT2.get_state: "stopped_pumps",
+				pumpS.get_state: "stopped_idle"				
+			},
+			test_name=test_name,
+			test_step="Stop above setpoint"):
+		return False
+	
+	return True
+
+
+def selftest_pump1_valve2():
+	'''
+	Test for two zones, one pump, valve on each zone
+	'''
+
+	my_controller_name = "TCp1v2"
+	
+	# Overall test variables
+	test_name = "Single pump, two valves selftest"
+	
+	# Setup system configuration for testing
+	heating_system = HeatingSystem(my_controller_name)
+	
+	zoneT1 = heating_system.get_zone("TestZone1")
+	zoneT2 = heating_system.get_zone("TestZone2")
+	
+	sensorT1 = heating_system.transducer_tracker.get_sensor(my_controller_name, "sT1")
+	zoneT1.add_sensor(sensorT1)
+	
+	sensorT2 = heating_system.transducer_tracker.get_sensor(my_controller_name, "sT2")
+	zoneT2.add_sensor(sensorT2)
+	
+	circuitT1 = zoneT1.get_circuit("TestCircuit1", "heat")
+	circuitT2 = zoneT2.get_circuit("TestCircuit2", "heat")
+	
+	valveT1 = heating_system.transducer_tracker.get_valve(my_controller_name, "vT1", type_name="NO-default", default_state="NO")
+	valveT2 = heating_system.transducer_tracker.get_valve(my_controller_name, "vT2", type_name="NC-default", default_state="NC")
+	
+	pumpS = heating_system.transducer_tracker.get_pump(my_controller_name, "pumpS")
+	circuitT1.add_pump(pumpS)
+	circuitT1.add_valve(valveT1)
+	circuitT2.add_pump(pumpS)
+	circuitT2.add_valve(valveT2)
+
+	test_connector = ConnectorTest()
+	heating_system.set_connector(test_connector)
+	
+	# Set default/correct responses
+	test_connector.add_response("pump/" + my_controller_name + "/pumpS/set", "pump",   "pump/" + my_controller_name + "/pumpS/status", "pumping")
+	test_connector.add_response("pump/" + my_controller_name + "/pumpS/set", "stop",   "pump/" + my_controller_name + "/pumpS/status", "stopped")
+
+	test_connector.add_response("valve/" + my_controller_name + "/vT1/set", "open",    "valve/" + my_controller_name + "/vT1/status", "opened")
+	test_connector.add_response("valve/" + my_controller_name + "/vT1/set", "close",   "valve/" + my_controller_name + "/vT1/status", "closed")
+	test_connector.add_response("valve/" + my_controller_name + "/vT1/set", "release", "valve/" + my_controller_name + "/vT1/status", "released")
+
+	test_connector.add_response("valve/" + my_controller_name + "/vT2/set", "open",    "valve/" + my_controller_name + "/vT2/status", "opened")
+	test_connector.add_response("valve/" + my_controller_name + "/vT2/set", "close",   "valve/" + my_controller_name + "/vT2/status", "closed")
+	test_connector.add_response("valve/" + my_controller_name + "/vT2/set", "release", "valve/" + my_controller_name + "/vT2/status", "released")
+	
+	# Perform idle test
+	if not run_to_state(
+			heating_system,
+			{
+				circuitT1.get_state: "stopped_pumps",
+				circuitT2.get_state: "stopped_pumps",
+				valveT1.get_state: "released",
+				valveT2.get_state: "released",
+				pumpS.get_state: "stopped_idle"
+			},
+			test_name=test_name,
+			test_step="Idle at no demand"):
+		return False	
+
+	# Perform heating test
+	zoneT1.set_desired_temperature(20)
+	zoneT2.set_desired_temperature(20)
+	test_connector.set_regular_input("sensor/" + my_controller_name + "/sT1/temperature", "10")
+	test_connector.set_regular_input("sensor/" + my_controller_name + "/sT2/temperature", "10")
+	if not run_to_state(
+			heating_system,
+			{
+				circuitT1.get_state: "circulating",
+				circuitT2.get_state: "circulating",
+				valveT1.get_state: "opened",
+				valveT2.get_state: "opened",
+				pumpS.get_state: "pumping"
+			},
+			test_name=test_name,
+			test_step="Circulate below setpoint"):
+		return False
+
+	test_connector.set_regular_input("sensor/" + my_controller_name + "/sT1/temperature", "30")
+	test_connector.set_regular_input("sensor/" + my_controller_name + "/sT2/temperature", "30")
+	if not run_to_state(
+			heating_system,
+			{
+				circuitT1.get_state: "stopped_pumps",
+				circuitT2.get_state: "stopped_pumps",
+				valveT1.get_state: "released",
+				valveT2.get_state: "released",
+				pumpS.get_state: "stopped_idle"				
+			},
+			test_name=test_name,
+			test_step="Stop above setpoint"):
+		return False
+
+	test_connector.set_regular_input("sensor/" + my_controller_name + "/sT2/temperature", "10")
+	if not run_to_state(
+			heating_system,
+			{
+				circuitT1.get_state: "stop_valves_closed",
+				circuitT2.get_state: "circulating",
+				valveT1.get_state: "closed",
+				valveT2.get_state: "opened",
+				pumpS.get_state: "pumping"				
+			},
+			test_name=test_name,
+			test_step="Stop above setpoint"):
+		return False
+	
+	return True
+
+
+def on_connect(client, userdata, flags, result_code):
+	'''
+	Callback for when the mqtt client made a connection with the server
+	'''
+	send_output("DEBUG", "Connected as " + mqtt_client_id + " with result code " + str(result_code))
+	global mqtt_is_connected
+	mqtt_is_connected = True
+	try:
+		# Subscribing in connect to also have the subscriptions when reconnecting.
+		client.subscribe("sensor/+/+/temperature", qos=0)
+		client.subscribe("valve/+/+/status", qos=0)
+		client.subscribe("pump/+/+/status", qos=0)
+		send_output("DEBUG", "Subscribed to relevant topics")
+	except (Exception, e):
+		send_output("ERROR", "Failed to subscribe to relevant topics")
+		send_output("DEBUG", str(e))
+
+
+def on_disconnect(client, userdata, rc):
+	global mqtt_is_connected
+	global continue_running
+
+	mqtt_is_connected = False
+	
+	# Only reconnect if the client identifier was wrong or if the server was unavailable
+	if (rc in [1, 2, 3]):
+		send_output("INFO", "Disconnected from MMQT for reason " + str(rc) + " setting reconnect")
+	else:
+		send_output("ERROR", "Disconnected from MQTT with fatal reason " + str(rc) + ", terminating")
+		continue_running = False
+	
+
+def main():
+	global continue_running
+	global mqtt_client
+	global test_mode
+	global my_controller_name
+	
+	mqtt_connector = None
+	
+	send_output("DEBUG", "Install signalhandlers to allow program to terminate gracefully")
+	signal.signal(signal.SIGTERM, terminate_program)
+	signal.signal(signal.SIGINT, terminate_program)
+	signal.signal(signal.SIGQUIT, terminate_program)
+
+	run_as_central_controller = True
+
+	send_output("INFO", "Performing self-tests")
+	# If tests fail, then don't run as central controller
+	run_as_central_controller = selftests()
+
+	if test_mode or not run_as_central_controller:
+		send_output("INFO", "Not acting as central controller.")
+		run_as_central_controller = False
+	else:
+		send_output("INFO", "Acting as central controller")
+		send_output("INFO", "Parse config file " + slimat_config_file)
+		run_as_central_controller = parse_config(my_controller_name)
+
+	if run_as_central_controller:
+		send_output("DEBUG", "Setting up MQTT communication")
+		mqtt_client = mqtt.Client(mqtt_client_id)
+		mqtt_client.connect(mqtt_server_host)
+		# Loop one second to handle connections
+		mqtt_client.loop(1)
+		mqtt_connector = ConnectorMQTT(mqtt_client)
+		
+		send_output("INFO", "Load zone/system data and initialize")
+		heating_system = HeatingSystem(my_controller_name)
+		heating_system.extend_from_config_file(zones_config_file)
+		
+		if mqtt_connector is not None:
+			heating_system.set_connector(mqtt_connector)
+
+		send_output("INFO", "Start running main control loop")
+		last_time_run = 0
+		while continue_running:
+			heating_system.run_control_loop(blocking_time = 10)
+
+		send_output("INFO", "Stopping program, disconnecting MQTT")
+		mqtt_client.disconnect()
+
+	send_output("INFO", "Terminating program")
+
+
+################
+# Main function
+##############
+
+if __name__ == '__main__':
+    main()
+

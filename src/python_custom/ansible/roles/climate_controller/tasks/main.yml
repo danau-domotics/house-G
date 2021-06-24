@@ -1,0 +1,66 @@
+---
+# file: roles/climate-controller/tasks/main.yml
+  
+- name: Ensure MQTT-service and web-service packages are installed
+  apt:
+    update_cache: no
+    name: "{{ packages }}"
+    state: present
+  become: true
+  become_user: root
+  become_method: sudo
+  vars:
+    packages:
+    - mosquitto
+    - apache2
+  when: "package_cache_updated.cache_updated | default(true)"
+  
+- name: Install default homepage
+  copy:
+    src: ../files/var/www/html/index.html
+    dest: /var/www/html
+    owner: root
+    mode: u=rw,g=r,o=r
+  become: true
+  become_user: root
+  become_method: sudo
+  
+- name: Ensure domoticz user account is present
+  user:
+    name: "{{ item }}"
+    create_home: true
+    state: present
+  become: true
+  become_user: root
+  become_method: sudo
+  with_items:
+    - domoticz
+    
+- name: Set domoticz home directories to only-user
+  file:
+    path: "/home/{{ item }}"
+    state: directory
+    mode: 0700
+  become: true
+  become_user: root
+  become_method: sudo
+  with_items:
+    - domoticz
+  
+- name: Update Mosquito persistence config for read-only filesystem
+  lineinfile:
+    path: /etc/mosquitto/mosquitto.conf
+    regexp: '^persistence '
+    line: persistence false
+  become: true
+  become_user: root
+  become_method: sudo
+    
+- name: Update Mosquito logging config for read-only filesystem
+  lineinfile:
+    path: /etc/mosquitto/mosquitto.conf
+    regexp: '^log_dest file '
+    line: log_dest file /tmp/mosquitto.log
+  become: true
+  become_user: root
+  become_method: sudo
