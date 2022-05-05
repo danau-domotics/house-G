@@ -22,11 +22,13 @@ De [patch punten CSV-file](../../../data/patch_punten.csv) geeft een overzicht v
 
 Het besturings-netwerk van het domotica-systeem gebruikt [1-wire](https://en.wikipedia.org/wiki/1-Wire) over UTP.
 
+/assets/docs/NL/system_description
+
 ### Netwerk layout
-![alt text](Layout_1W_network.svg "Netwerk layout")
+![netwerklayout](/assets/docs/NL/system_description/Layout_1W_network.svg)
 
 ### Aansluitschema
-![alt text](1W_boxes.svg "Aansluitschema")
+![aansluitschema](/assets/docs/NL/system_description/1W_boxes.svg)
 
 
 ### Gebruikte domotica componenten
@@ -44,7 +46,7 @@ Gebruikte componenten in het systeem:
 #### USB-to-1wire Convertor (met behuizing)
 | Overzicht | Detail |
 | ---       |  ---   |
-| ![1W USB overzicht](../../images/2020-10-24_1w_usb_overview.jpg)| ![1W USB Detail](../../images/2020-10-24_1w_usb_detail.jpg) |
+| ![overzicht](/assets/docs/images/2020-10-24_1w_usb_overview.jpg) | ![detail](/assets/docs/images/2020-10-24_1w_usb_detail.jpg) |
 
 ## Verwarmings netwerk.
 
