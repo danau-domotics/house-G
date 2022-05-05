@@ -83,11 +83,13 @@ Wijziging van standaard setpoints na opstarten en wijziging van "standaard (vors
 
 
 ## Ge-agendeerde instellingen.
+
 ### Weekschema
 Instelling van temperaturen voor elke dag van de week.
 
 ### Dagschema
 Instelling van temperaturen voor verschillende tijden van de dag.
+Het duurt 4 tot 8 uur voor een vloerverwarming om de temperatuur aan te passen, dus het aantal nuttige setpoints is typisch beperkt tot 3 (ochtend-temperatuur, avond-temperatuur, nacht-temperatuur).
 
 ### Afwezigheids-instelling
 Instelling van alleen vorstbeveiliging voor een bepaalde tijd.
@@ -111,12 +113,12 @@ Het systeem kan gekoppeld worden met automatische lampen (over ZigBee) zoals te 
 Softwarematig aan en uit-schakelen van buiten-stopcontacten.
 
 ## Automatische kranen vlak na watermeter
-Softwarematig buitenkranen aan en afsluiten van buitenkranen.
+Softwarematig aan en afsluiten van buitenkranen.
 
 ## Bediening elektrische garagedeur.
 Aanbrengen bedienings-aansluitingen elektrische garagedeur.
 
-## Detectie vaatwasser, was-machine en/of wasdroger activiteit.
+## Detectie vaatwasser, wasmachine en/of droger activiteit.
 Alarm via het domotica-systeem als de vaatwasser, was-machine of was-droger klaar is.
 
 

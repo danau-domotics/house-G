@@ -2,7 +2,7 @@
 
 ## Gebruik
 Dit is de procedure om het verwarmings-afgifte-systeem uit te schakelen.
-Uitschakelen van het systeem is noodzakelijk als het systeem beschadigd is, als de waterdruk te laag is of vooraf aan onderhoud aan het verwarmingssysteem.
+Uitschakelen van het systeem is noodzakelijk als het systeem beschadigd is, als de waterdruk te laag is of vooraf bij onderhoud aan het verwarmingssysteem.
 
 De besturings computer/laptop/tablet/telefoon is niet direct gekoppeld aan het systeem (maar maakt verbinding over WiFi). Deze kan los van de rest van het systeem aan en uitgezet worden.
 

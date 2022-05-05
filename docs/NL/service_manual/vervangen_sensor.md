@@ -11,7 +11,7 @@ Het verwisselen van een sensor bestaat uit 2 delen:
 ## Stappen
 
 Stappenplan:
-- Controleer dat het systeem werkt (door website (TODO link) te openen)
+- Controleer dat het systeem werkt (door website [http://openhab.home:8080](http://openhab.home:8080) te openen)
 - Zoek een vervangende sensor op.
 - Zoek de (kabelgoot)cover op die bij de sensor hoort.
   - ![Sensor Cover Dicht](../../images/2020-10-24_sensor_closed.jpg)
@@ -21,8 +21,8 @@ Stappenplan:
   - ![Sensor Disconnect](../../images/2020-10-24_sensor_disconnected.jpg)
 - Klik de nieuwe sensor in de UTP aansluiting.
   - ![Sensor Disconnect](../../images/2020-10-24_sensor_connected.jpg)
-- Open de website (TODO: link) om de sensor te koppelen.
-  - Indien deze website niet werkt en het domotica-systeem op dit punt uitgevallen, dan is de nieuwe sensor beschadigd.
+- Open de website [http://openhab.home:8080](http://openhab.home:8080) om de sensor te koppelen.
+  - Indien deze website niet werkt en het domotica-systeem op dit punt uitgevallen is, dan is de nieuwe sensor beschadigd.
      - Klik in dat geval de nieuwe sensor los (en laat de sensor repareren of gooi de sensor weg) en herstart het stappenplan met een andere nieuwe sensor.
 - Sluit de kabelgoot weer door hem dicht te drukken.
   - ![Sensor Cover Dicht](../../images/2020-10-24_sensor_closed.jpg)
